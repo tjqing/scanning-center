@@ -1,0 +1,64 @@
+package com.icbc.scan.center.controller;
+
+import com.icbc.scan.center.common.*;
+import com.icbc.scan.center.dto.RepositorySaveDTO;
+import com.icbc.scan.center.model.CodeRepository;
+import com.icbc.scan.center.service.RepositoryService;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+@RestController
+@RequestMapping("/api/v1/repositories")
+public class RepositoryController {
+  private final RepositoryService s;
+
+  public RepositoryController(RepositoryService s) {
+    this.s = s;
+  }
+
+  @GetMapping
+  public ApiResponse<PageResult<CodeRepository>> page(
+      @RequestParam(required = false) String keyword,
+      @RequestParam(required = false) String type,
+      @RequestParam(required = false) Boolean enabled,
+      @RequestParam(defaultValue = "1") int pageNum,
+      @RequestParam(defaultValue = "20") int pageSize) {
+    return ApiResponse.success(s.page(keyword, type, enabled, pageNum, pageSize));
+  }
+
+  @GetMapping("/{id}")
+  public ApiResponse<CodeRepository> get(@PathVariable Long id) {
+    return ApiResponse.success(s.get(id));
+  }
+
+  @PostMapping
+  public ApiResponse<Long> create(@Validated @RequestBody RepositorySaveDTO d) {
+    return ApiResponse.success(s.create(d));
+  }
+
+  @PutMapping("/{id}")
+  public ApiResponse<Void> update(
+      @PathVariable Long id, @Validated @RequestBody RepositorySaveDTO d) {
+    s.update(id, d);
+    return ApiResponse.success(null);
+  }
+
+  @DeleteMapping("/{id}")
+  public ApiResponse<Void> delete(@PathVariable Long id) {
+    s.delete(id);
+    return ApiResponse.success(null);
+  }
+
+  @PutMapping("/{id}/status")
+  public ApiResponse<Void> status(@PathVariable Long id, @RequestParam boolean enabled) {
+    s.status(id, enabled);
+    return ApiResponse.success(null);
+  }
+
+  @PostMapping("/{id}/files")
+  public ApiResponse<Void> upload(@PathVariable Long id, @RequestParam("file") MultipartFile file) {
+    s.upload(id, file);
+    return ApiResponse.success(null);
+  }
+}

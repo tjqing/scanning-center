@@ -1,0 +1,20 @@
+server:
+  port: 8080
+spring:
+  profiles:
+    active: dev
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 100MB
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
+mybatis:
+  mapper-locations: classpath:mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+scan-center:
+  storage-root: ./data/storage
+  workspace-root: ./data/workspace
+  worker-threads: 2
