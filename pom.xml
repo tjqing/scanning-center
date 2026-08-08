@@ -6,7 +6,7 @@
         <groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-parent</artifactId>
         <version>2.0.9.RELEASE</version><relativePath/>
     </parent>
-    <groupId>com.icbc.scan</groupId><artifactId>scanning-center</artifactId><version>1.0.0</version>
+    <groupId>com.scan</groupId><artifactId>scanning-center</artifactId><version>1.0.0</version>
     <name>Scanning Center</name>
     <properties><java.version>1.8</java.version><mybatis.version>1.3.2</mybatis.version></properties>
     <dependencies>
