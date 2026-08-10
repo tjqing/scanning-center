@@ -14,6 +14,14 @@ CREATE TABLE IF NOT EXISTS system_user (
  create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP, update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_user_query ON system_user(deleted,enabled,role_code);
+CREATE TABLE IF NOT EXISTS system_setting (
+ setting_key VARCHAR(100) PRIMARY KEY, setting_value VARCHAR(1000) NOT NULL, description VARCHAR(500),
+ operator_user_id BIGINT, operator_user_name VARCHAR(128),
+ create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP, update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+INSERT INTO system_setting(setting_key,setting_value,description)
+SELECT 'AI_TOKEN_RETRY_COUNT','3','大模型Token调用失败后的重试次数'
+WHERE NOT EXISTS (SELECT 1 FROM system_setting WHERE setting_key='AI_TOKEN_RETRY_COUNT');
 CREATE TABLE IF NOT EXISTS code_repository (
  id BIGINT AUTO_INCREMENT PRIMARY KEY, repository_name VARCHAR(128) NOT NULL, source_type VARCHAR(20) NOT NULL,
  description VARCHAR(1000), repository_url VARCHAR(1000), default_branch VARCHAR(128),
@@ -251,6 +259,8 @@ ALTER TABLE code_repository ADD COLUMN IF NOT EXISTS repository_code VARCHAR(64)
 ALTER TABLE code_repository ADD COLUMN IF NOT EXISTS application VARCHAR(128);
 ALTER TABLE code_repository ADD COLUMN IF NOT EXISTS scan_source_type VARCHAR(20) DEFAULT 'CODE';
 ALTER TABLE code_repository ADD COLUMN IF NOT EXISTS repository_catalog_id BIGINT;
+ALTER TABLE code_repository ADD COLUMN IF NOT EXISTS git_projects_json CLOB;
+ALTER TABLE code_repository ADD COLUMN IF NOT EXISTS md_document_type VARCHAR(30);
 ALTER TABLE code_repository ADD COLUMN IF NOT EXISTS version_no VARCHAR(20);
 ALTER TABLE code_repository DROP COLUMN IF EXISTS design_document_path;
 UPDATE code_repository SET scan_source_type=CASE WHEN source_type IN ('DATABASE','HTTP') THEN 'MD' ELSE 'CODE' END;

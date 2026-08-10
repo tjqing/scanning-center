@@ -10,12 +10,7 @@ import com.scan.center.mapper.UserMapper;
 import com.scan.center.model.RepositoryCatalog;
 import com.scan.center.model.SystemUser;
 import java.util.*;
-import java.util.stream.Collectors;
-import org.eclipse.jgit.api.Git;
-import org.eclipse.jgit.lib.Ref;
-import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 import org.springframework.beans.BeanUtils;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,15 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class RepositoryCatalogService {
   private final RepositoryCatalogMapper mapper;
   private final UserMapper userMapper;
-  private final String gitUsername;
-  private final String gitToken;
-
-  public RepositoryCatalogService(RepositoryCatalogMapper mapper, UserMapper userMapper,
-      @Value("${scan-center.git.username:}") String gitUsername,
-      @Value("${scan-center.git.token:}") String gitToken) {
+  public RepositoryCatalogService(RepositoryCatalogMapper mapper, UserMapper userMapper) {
     this.mapper = mapper; this.userMapper = userMapper;
-    this.gitUsername = gitUsername == null ? "" : gitUsername;
-    this.gitToken = gitToken == null ? "" : gitToken;
   }
 
   public PageResult<RepositoryCatalog> page(String keyword, String application, Boolean enabled, int page, int size) {
@@ -59,18 +47,6 @@ public class RepositoryCatalogService {
     if (!"ADMIN".equals(user.getRoleCode()) && userMapper.countRepositoryRelation(user.getId(), id) == 0)
       throw new BusinessException(60007, "无权访问该代码库");
     return value;
-  }
-
-  public List<String> branches(Long id) {
-    RepositoryCatalog value = accessible(id);
-    try {
-      org.eclipse.jgit.api.LsRemoteCommand command = Git.lsRemoteRepository().setRemote(value.getRepositoryUrl()).setHeads(true);
-      if (!gitToken.isEmpty()) command.setCredentialsProvider(new UsernamePasswordCredentialsProvider(gitUsername.isEmpty() ? "token" : gitUsername, gitToken));
-      return command.call().stream().map(Ref::getName).filter(name -> name.startsWith("refs/heads/"))
-          .map(name -> name.substring("refs/heads/".length())).sorted().collect(Collectors.toList());
-    } catch (Exception e) {
-      throw new BusinessException(60008, "远程分支查询失败：" + limit(e.getMessage(), 300));
-    }
   }
 
   public RepositoryCatalog get(Long id) {
@@ -133,7 +109,4 @@ public class RepositoryCatalogService {
     return user;
   }
 
-  private String limit(String value, int length) {
-    if (value == null) return "未知错误"; return value.length() <= length ? value : value.substring(0, length);
-  }
 }

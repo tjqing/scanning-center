@@ -49,6 +49,14 @@ public class ModelConfigController {
     return ApiResponse.success(service.testCredential(id));
   }
 
+  @GetMapping("/model-settings/token-retry-count")
+  public ApiResponse<Integer> tokenRetryCount() { return ApiResponse.success(service.tokenRetryCount()); }
+
+  @PutMapping("/model-settings/token-retry-count")
+  public ApiResponse<Void> updateTokenRetryCount(@RequestParam int retryCount) {
+    service.updateTokenRetryCount(retryCount); return ApiResponse.success(null);
+  }
+
   @GetMapping("/model-prompts")
   public ApiResponse<List<ModelPromptTemplate>> prompts(@RequestParam(required = false) String type) {
     return ApiResponse.success(service.prompts(type));

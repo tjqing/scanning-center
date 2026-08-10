@@ -63,7 +63,7 @@ public class RepositoryController {
   }
 
   @GetMapping("/md/versions")
-  public ApiResponse<java.util.List<String>> mdVersions(@RequestParam String application) {
-    return ApiResponse.success(s.mdVersions(application));
+  public ApiResponse<java.util.List<String>> mdVersions(@RequestParam String documentType, @RequestParam String application) {
+    return ApiResponse.success(s.mdVersions(documentType, application));
   }
 }

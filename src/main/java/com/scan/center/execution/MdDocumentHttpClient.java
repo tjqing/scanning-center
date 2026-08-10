@@ -16,24 +16,30 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 @Component
 public class MdDocumentHttpClient {
-  private final String versionsUrl;
-  private final String documentsUrl;
+  public static final String OVERVIEW = "OVERVIEW_DESIGN";
+  public static final String DETAIL = "DETAIL_DESIGN";
+  private final Map<String, String> versionsUrls;
+  private final Map<String, String> documentsUrls;
   private final RestTemplate restTemplate;
   private final ObjectMapper json;
 
   public MdDocumentHttpClient(
-      @Value("${scan-center.md-api.versions-url:}") String versionsUrl,
-      @Value("${scan-center.md-api.documents-url:}") String documentsUrl,
+      @Value("${scan-center.md-api.overview.versions-url:}") String overviewVersionsUrl,
+      @Value("${scan-center.md-api.overview.documents-url:}") String overviewDocumentsUrl,
+      @Value("${scan-center.md-api.detail.versions-url:}") String detailVersionsUrl,
+      @Value("${scan-center.md-api.detail.documents-url:}") String detailDocumentsUrl,
       @Value("${scan-center.md-api.connect-timeout-ms:10000}") int connectTimeout,
       @Value("${scan-center.md-api.read-timeout-ms:120000}") int readTimeout,
       ObjectMapper json) {
-    this.versionsUrl = trim(versionsUrl); this.documentsUrl = trim(documentsUrl); this.json = json;
+    this.versionsUrls = new HashMap<String, String>(); this.documentsUrls = new HashMap<String, String>();
+    this.versionsUrls.put(OVERVIEW, trim(overviewVersionsUrl)); this.documentsUrls.put(OVERVIEW, trim(overviewDocumentsUrl));
+    this.versionsUrls.put(DETAIL, trim(detailVersionsUrl)); this.documentsUrls.put(DETAIL, trim(detailDocumentsUrl)); this.json = json;
     SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
     factory.setConnectTimeout(connectTimeout); factory.setReadTimeout(readTimeout); this.restTemplate = new RestTemplate(factory);
   }
 
-  public List<String> versions(String application) {
-    if (versionsUrl.isEmpty()) throw new BusinessException(21001, "未配置MD版本查询HTTP接口（MD_VERSIONS_URL）");
+  public List<String> versions(String documentType, String application) {
+    String versionsUrl = endpoint(versionsUrls, documentType, "版本查询");
     try {
       JsonNode root = get(uri(versionsUrl, application, null)); JsonNode values = array(root, "versions");
       LinkedHashSet<String> result = new LinkedHashSet<String>();
@@ -46,8 +52,8 @@ public class MdDocumentHttpClient {
     catch (Exception e) { throw new BusinessException(21002, "MD版本HTTP接口调用失败：" + limit(e.getMessage(), 500)); }
   }
 
-  public void download(String application, String version, Path target) {
-    if (documentsUrl.isEmpty()) throw new BusinessException(21003, "未配置MD文档获取HTTP接口（MD_DOCUMENTS_URL）");
+  public void download(String documentType, String application, String version, Path target) {
+    String documentsUrl = endpoint(documentsUrls, documentType, "文档获取");
     try {
       JsonNode root = get(uri(documentsUrl, application, version)); JsonNode documents = array(root, "documents");
       int index = 0;
@@ -73,6 +79,15 @@ public class MdDocumentHttpClient {
     if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) throw new IllegalArgumentException("HTTP状态" + response.getStatusCodeValue());
     return json.readTree(response.getBody());
   }
+
+  private String endpoint(Map<String, String> endpoints, String documentType, String purpose) {
+    if (!Arrays.asList(OVERVIEW, DETAIL).contains(documentType)) throw new BusinessException(21005, "MD文档类型不合法");
+    String value = endpoints.get(documentType);
+    if (value == null || value.isEmpty()) throw new BusinessException(21001, "未配置" + mdName(documentType) + purpose + "HTTP接口");
+    return value;
+  }
+
+  private String mdName(String documentType) { return OVERVIEW.equals(documentType) ? "概要设计.md" : "详细设计.md"; }
 
   private URI uri(String url, String application, String version) {
     UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(url).queryParam("application", application);

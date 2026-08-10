@@ -4,6 +4,7 @@ import com.scan.center.dto.RepositoryCatalogSaveDTO;
 import com.scan.center.dto.UserSaveDTO;
 import com.scan.center.model.SystemUser;
 import com.scan.center.service.RepositoryCatalogService;
+import com.scan.center.service.ModelConfigService;
 import com.scan.center.service.UserService;
 import org.junit.Assert;
 import org.junit.Test;
@@ -17,9 +18,18 @@ import org.springframework.test.context.junit4.SpringRunner;
 public class ScanningCenterApplicationTests {
   @Autowired private RepositoryCatalogService repositoryCatalogService;
   @Autowired private UserService userService;
+  @Autowired private ModelConfigService modelConfigService;
 
   @Test
   public void contextLoads() {}
+
+  @Test
+  public void administratorCanConfigureTokenRetryCount() {
+    Assert.assertEquals(3, modelConfigService.tokenRetryCount());
+    modelConfigService.updateTokenRetryCount(4);
+    Assert.assertEquals(4, modelConfigService.tokenRetryCount());
+    modelConfigService.updateTokenRetryCount(3);
+  }
 
   @Test
   public void applicationAutomaticallyAssociatesEnabledRepositories() {

@@ -1,5 +1,7 @@
 package com.scan.center.execution;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.scan.center.exception.BusinessException;
 import com.scan.center.model.CodeRepository;
 import java.io.*;
@@ -19,18 +21,20 @@ public class SourceWorkspaceService {
   private final String gitUsername;
   private final String gitToken;
   private final MdDocumentHttpClient mdClient;
+  private final ObjectMapper json;
 
   public SourceWorkspaceService(
       @Value("${scan-center.storage-root}") String storageRoot,
       @Value("${scan-center.workspace-root}") String workspaceRoot,
       @Value("${scan-center.git.username:}") String gitUsername,
       @Value("${scan-center.git.token:}") String gitToken,
-      MdDocumentHttpClient mdClient) {
+      MdDocumentHttpClient mdClient, ObjectMapper json) {
     this.storageRoot = Paths.get(storageRoot).toAbsolutePath().normalize();
     this.snapshotRoot = Paths.get(workspaceRoot).toAbsolutePath().normalize().resolve("snapshots");
     this.gitUsername = gitUsername == null ? "" : gitUsername;
     this.gitToken = gitToken == null ? "" : gitToken;
     this.mdClient = mdClient;
+    this.json = json;
   }
 
   public Path prepare(Long snapshotId, CodeRepository repository, String versionNo) {
@@ -57,7 +61,7 @@ public class SourceWorkspaceService {
 
   private void prepareCode(CodeRepository repository, Path target) throws Exception {
     if ("GIT".equals(repository.getSourceType())) {
-      cloneRepository(repository, target);
+      cloneRepositories(repository, target);
     } else if ("UPLOAD".equals(repository.getSourceType())) {
       if (blank(repository.getStorageKey())) throw new IOException("ZIP扫描源尚未上传文件");
       Path zip = storageRoot.resolve(repository.getStorageKey()).normalize();
@@ -72,16 +76,39 @@ public class SourceWorkspaceService {
     if (!"HTTP".equals(repository.getSourceType())) throw new IOException("MD扫描源必须使用HTTP获取方式");
     if (blank(repository.getApplication())) throw new IOException("MD扫描源未配置所属应用");
     if (blank(versionNo) || !versionNo.matches("\\d{6}")) throw new IOException("MD扫描版本必须为YYYYMM格式");
-    mdClient.download(repository.getApplication(), versionNo, target);
+    mdClient.download(repository.getMdDocumentType(), repository.getApplication(), versionNo, target);
   }
 
-  private void cloneRepository(CodeRepository repository, Path target) throws Exception {
-    if (blank(repository.getRepositoryUrl())) throw new IOException("Git仓库地址为空");
-    CloneCommand command = Git.cloneRepository().setURI(repository.getRepositoryUrl()).setDirectory(target.toFile());
-    if (!blank(repository.getDefaultBranch())) command.setBranch(repository.getDefaultBranch());
+  private void cloneRepositories(CodeRepository repository, Path target) throws Exception {
+    List<CodeRepository.GitProject> projects = blank(repository.getGitProjectsJson())
+        ? Collections.singletonList(legacyProject(repository))
+        : json.readValue(repository.getGitProjectsJson(), new TypeReference<List<CodeRepository.GitProject>>() {});
+    if (projects.isEmpty()) throw new IOException("Git扫描源未配置项目");
+    Set<String> directories = new HashSet<String>();
+    for (CodeRepository.GitProject project : projects) {
+      if (blank(project.getUrl())) throw new IOException("Git仓库地址为空：" + project.getName());
+      String directory = safeDirectory(project.getName());
+      if (!directories.add(directory)) directory += "-" + project.getId();
+      cloneRepository(project.getUrl(), repository.getDefaultBranch(), target.resolve(directory));
+    }
+  }
+
+  private void cloneRepository(String url, String branch, Path target) throws Exception {
+    CloneCommand command = Git.cloneRepository().setURI(url).setDirectory(target.toFile());
+    if (!blank(branch)) command.setBranch(branch);
     if (!gitToken.isEmpty())
       command.setCredentialsProvider(new UsernamePasswordCredentialsProvider(gitUsername.isEmpty() ? "token" : gitUsername, gitToken));
     try (Git ignored = command.call()) {}
+  }
+
+  private CodeRepository.GitProject legacyProject(CodeRepository repository) {
+    CodeRepository.GitProject value = new CodeRepository.GitProject(); value.setId(repository.getRepositoryCatalogId());
+    value.setName(repository.getRepositoryCode()); value.setUrl(repository.getRepositoryUrl()); value.setApplication(repository.getApplication()); return value;
+  }
+
+  private String safeDirectory(String value) {
+    String safe = blank(value) ? "project" : value.replaceAll("[^A-Za-z0-9._\\-]", "_");
+    return safe.length() <= 100 ? safe : safe.substring(0, 100);
   }
 
   private boolean containsRegularFile(Path root) throws IOException {

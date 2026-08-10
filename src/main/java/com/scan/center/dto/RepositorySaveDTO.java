@@ -1,6 +1,7 @@
 package com.scan.center.dto;
 
 import javax.validation.constraints.*;
+import java.util.List;
 import lombok.Data;
 
 @Data
@@ -15,6 +16,13 @@ public class RepositorySaveDTO {
   private String application;
 
   private Long repositoryCatalogId;
+
+  private List<Long> repositoryCatalogIds;
+
+  private String gitProjectsJson;
+
+  @Size(max = 30)
+  private String mdDocumentType;
 
   @Size(max = 20)
   private String versionNo;

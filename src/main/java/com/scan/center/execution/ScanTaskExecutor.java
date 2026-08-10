@@ -94,7 +94,7 @@ public class ScanTaskExecutor {
         if ("STOP_REQUESTED".equals(runStatus)) {
           pause(context); return;
         }
-        ExecutionUnit unit = nextUnit(runId);
+        ExecutionUnit unit = nextUnit(context);
         if (unit == null) break;
         process(context, unit);
         refreshProgress(context);
@@ -108,18 +108,20 @@ public class ScanTaskExecutor {
     }
   }
 
-  private ExecutionUnit nextUnit(Long runId) {
+  private ExecutionUnit nextUnit(RunContext context) {
+    Long runId = context.runId;
+    int maxRetries = "AI".equals(context.taskType) ? modelConfig.tokenRetryCount() : 0;
     List<ExecutionUnit> values = jdbc.query(
-        "SELECT u.id,u.run_id,u.manifest_file_id,u.task_snapshot_rule_id,u.stage,u.status,u.preliminary_result,u.retry_count,u.result_commit_key,f.relative_path,f.content_hash,sr.rule_snapshot FROM task_execution_unit u JOIN task_scan_manifest_file f ON f.id=u.manifest_file_id JOIN task_snapshot_rule sr ON sr.id=u.task_snapshot_rule_id WHERE u.run_id=? AND (u.status='PENDING' OR (u.status='FAILED' AND u.retry_count<2)) ORDER BY u.id LIMIT 1",
-        new Object[] {runId}, (rs, row) -> unit(rs));
+        "SELECT u.id,u.run_id,u.manifest_file_id,u.task_snapshot_rule_id,u.stage,u.status,u.preliminary_result,u.retry_count,u.result_commit_key,f.relative_path,f.content_hash,sr.rule_snapshot FROM task_execution_unit u JOIN task_scan_manifest_file f ON f.id=u.manifest_file_id JOIN task_snapshot_rule sr ON sr.id=u.task_snapshot_rule_id WHERE u.run_id=? AND (u.status='PENDING' OR (u.status='FAILED' AND u.retry_count<?)) ORDER BY u.id LIMIT 1",
+        new Object[] {runId, maxRetries}, (rs, row) -> unit(rs));
     if (values.isEmpty()) return null;
     ExecutionUnit unit = values.get(0);
     String lease = UUID.randomUUID().toString();
     Timestamp expiry = new Timestamp(System.currentTimeMillis() + 5 * 60 * 1000L);
     int changed = jdbc.update(
-        "UPDATE task_execution_unit SET status='RUNNING',lease_id=?,lease_expire_time=?,start_time=COALESCE(start_time,CURRENT_TIMESTAMP),update_time=CURRENT_TIMESTAMP WHERE id=? AND (status='PENDING' OR (status='FAILED' AND retry_count<2))",
-        lease, expiry, unit.id);
-    if (changed != 1) return nextUnit(runId);
+        "UPDATE task_execution_unit SET status='RUNNING',lease_id=?,lease_expire_time=?,start_time=COALESCE(start_time,CURRENT_TIMESTAMP),update_time=CURRENT_TIMESTAMP WHERE id=? AND (status='PENDING' OR (status='FAILED' AND retry_count<?))",
+        lease, expiry, unit.id, maxRetries);
+    if (changed != 1) return nextUnit(context);
     unit.leaseId = lease;
     return unit;
   }
@@ -236,10 +238,11 @@ public class ScanTaskExecutor {
   }
 
   private void refreshProgress(RunContext context) {
+    int maxRetries = "AI".equals(context.taskType) ? modelConfig.tokenRetryCount() : 0;
     int total = count("SELECT COUNT(*) FROM task_execution_unit WHERE run_id=?", context.runId);
     int successUnits = count("SELECT COUNT(*) FROM task_execution_unit WHERE run_id=? AND status='SUCCESS'", context.runId);
-    int failedUnits = count("SELECT COUNT(*) FROM task_execution_unit WHERE run_id=? AND status='FAILED' AND retry_count>=2", context.runId);
-    int completedFiles = count("SELECT COUNT(*) FROM task_scan_manifest_file f WHERE f.manifest_id=? AND NOT EXISTS(SELECT 1 FROM task_execution_unit u WHERE u.run_id=? AND u.manifest_file_id=f.id AND (u.status IN ('PENDING','RUNNING') OR (u.status='FAILED' AND u.retry_count<2)))", context.manifestId, context.runId);
+    int failedUnits = count("SELECT COUNT(*) FROM task_execution_unit WHERE run_id=? AND status='FAILED' AND retry_count>=?", context.runId, maxRetries);
+    int completedFiles = count("SELECT COUNT(*) FROM task_scan_manifest_file f WHERE f.manifest_id=? AND NOT EXISTS(SELECT 1 FROM task_execution_unit u WHERE u.run_id=? AND u.manifest_file_id=f.id AND (u.status IN ('PENDING','RUNNING') OR (u.status='FAILED' AND u.retry_count<?)))", context.manifestId, context.runId, maxRetries);
     int successFiles = count("SELECT COUNT(*) FROM task_scan_manifest_file f WHERE f.manifest_id=? AND NOT EXISTS(SELECT 1 FROM task_execution_unit u WHERE u.run_id=? AND u.manifest_file_id=f.id AND u.status<>'SUCCESS')", context.manifestId, context.runId);
     int failedFiles = Math.max(0, completedFiles - successFiles);
     int issues = count("SELECT COUNT(*) FROM scan_issue WHERE run_id=?", context.runId);

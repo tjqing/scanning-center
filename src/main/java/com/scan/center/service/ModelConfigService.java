@@ -177,6 +177,30 @@ public class ModelConfigService {
     return count == null ? 0 : count;
   }
 
+  public int tokenRetryCount() {
+    List<String> values = jdbc.query("SELECT setting_value FROM system_setting WHERE setting_key='AI_TOKEN_RETRY_COUNT'",
+        (rs, row) -> rs.getString(1));
+    if (values.isEmpty()) return 3;
+    try { return Math.max(0, Math.min(10, Integer.parseInt(values.get(0)))); }
+    catch (Exception ignored) { return 3; }
+  }
+
+  @Transactional(rollbackFor = Exception.class)
+  public void updateTokenRetryCount(int retryCount) {
+    ensureAdmin();
+    if (retryCount < 0 || retryCount > 10) throw new BusinessException(60010, "Token重试次数必须在0到10之间");
+    int changed = jdbc.update("UPDATE system_setting SET setting_value=?,operator_user_id=?,operator_user_name=?,update_time=CURRENT_TIMESTAMP WHERE setting_key='AI_TOKEN_RETRY_COUNT'",
+        String.valueOf(retryCount), AuditOperator.USER_ID, AuditOperator.USER_NAME);
+    if (changed == 0) jdbc.update("INSERT INTO system_setting(setting_key,setting_value,description,operator_user_id,operator_user_name) VALUES('AI_TOKEN_RETRY_COUNT',?,'大模型Token调用失败后的重试次数',?,?)",
+        String.valueOf(retryCount), AuditOperator.USER_ID, AuditOperator.USER_NAME);
+  }
+
+  private void ensureAdmin() {
+    Integer count = jdbc.queryForObject("SELECT COUNT(*) FROM system_user WHERE id=? AND role_code='ADMIN' AND enabled=TRUE AND deleted=FALSE",
+        new Object[] {AuditOperator.USER_ID}, Integer.class);
+    if (count == null || count == 0) throw new BusinessException(60011, "仅管理员可以配置Token重试次数");
+  }
+
   private ModelCredential credentialInternal(Long id) {
     List<ModelCredential> values = jdbc.query(
         "SELECT * FROM user_model_credential WHERE id=? AND user_id=?",
