@@ -41,5 +41,13 @@ public class RuleSaveDTO {
   @Size(max = 30000)
   private String promptContent;
 
+  @Size(max = 30000)
+  private String checkRuleContent;
+
+  @Size(max = 30000)
+  private String resultUpdateContent;
+
+  private String visibility;
+
   private Boolean enabled;
 }

@@ -16,6 +16,13 @@ public class TaskCreateDTO {
   @NotNull private Long repositoryId;
   @NotEmpty private List<Long> ruleIds;
 
+  private java.util.List<String> scanPaths;
+  private java.util.List<String> fileTypes;
+  private java.util.List<String> excludePaths;
+
+  @Size(max = 20)
+  private String versionNo;
+
   @Size(max = 5000)
   private String scopeJson;
 

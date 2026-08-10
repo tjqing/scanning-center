@@ -130,6 +130,12 @@ public class RepositoryService {
     if ("GIT".equals(dto.getSourceType())
         && (dto.getRepositoryUrl() == null || dto.getRepositoryUrl().trim().isEmpty()))
       throw new BusinessException(20006, "Git资源库必须填写仓库地址");
+    if ("GIT".equals(dto.getSourceType())) {
+      if (blank(dto.getRepositoryCode()) || !dto.getRepositoryCode().matches("[A-Za-z0-9_-]+"))
+        throw new BusinessException(20015, "Git代码库必须填写合法的代码库编码");
+      if (blank(dto.getApplication())) throw new BusinessException(20016, "Git代码库必须配置所属应用");
+      if (!blank(dto.getDesignDocumentPath())) validateRelativePath(dto.getDesignDocumentPath(), "设计文档目录");
+    }
     if ("DATABASE".equals(dto.getSourceType())) {
       if (blank(dto.getDocumentQuery())
           || blank(dto.getDocumentNameColumn()) || blank(dto.getDocumentContentColumn()))
@@ -141,6 +147,12 @@ public class RepositoryService {
       validateColumnName(dto.getDocumentContentColumn(), "内容字段");
       if (!blank(dto.getDocumentTypeColumn())) validateColumnName(dto.getDocumentTypeColumn(), "类型字段");
     }
+  }
+
+  private void validateRelativePath(String value, String name) {
+    Path path = Paths.get(value).normalize();
+    if (path.isAbsolute() || value.contains(".."))
+      throw new BusinessException(20017, name + "必须是代码库内的安全相对路径");
   }
 
   private void validateCommaList(String value, String name, String tokenPattern) {

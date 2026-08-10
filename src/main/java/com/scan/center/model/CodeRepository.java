@@ -7,6 +7,9 @@ import lombok.Data;
 public class CodeRepository {
   private Long id;
   private String repositoryName;
+  private String repositoryCode;
+  private String application;
+  private String designDocumentPath;
   private String sourceType;
   private String description;
   private String repositoryUrl;

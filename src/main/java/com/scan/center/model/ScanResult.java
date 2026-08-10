@@ -7,6 +7,9 @@ import lombok.Data;
 public class ScanResult {
   private Long id;
   private Long taskId;
+  private Long runId;
+  private String runNo;
+  private String runStatus;
   private String taskNo;
   private String taskName;
   private String repositoryName;

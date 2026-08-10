@@ -9,6 +9,15 @@ public class RepositorySaveDTO {
   @Size(max = 128)
   private String repositoryName;
 
+  @Size(max = 64)
+  private String repositoryCode;
+
+  @Size(max = 128)
+  private String application;
+
+  @Size(max = 1000)
+  private String designDocumentPath;
+
   @NotBlank private String sourceType;
 
   @Size(max = 1000)

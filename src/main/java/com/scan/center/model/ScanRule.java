@@ -20,6 +20,14 @@ public class ScanRule {
   private String issueDescription;
   private String suggestion;
   private String promptContent;
+  private String checkRuleContent;
+  private String resultUpdateContent;
+  private String visibility;
+  private Long ownerUserId;
+  private String ownerUserName;
+  private Long sharedByUserId;
+  private String sharedByUserName;
+  private Date sharedTime;
   private Boolean enabled;
   private Boolean deleted;
   private Long operatorUserId;

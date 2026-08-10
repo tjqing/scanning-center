@@ -15,6 +15,16 @@ public class ScanTask {
   private String repositoryFileName;
   private String scopeJson;
   private String status;
+  private String taskType;
+  private Long ownerUserId;
+  private String ownerUserName;
+  private Long currentSnapshotId;
+  private Long currentRunId;
+  private String manifestStatus;
+  private Integer manifestFileCount;
+  private Integer snapshotVersion;
+  private Long manifestId;
+  private Boolean deleted;
   private Integer totalFiles;
   private Integer completedFiles;
   private Integer successFiles;

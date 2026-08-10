@@ -8,6 +8,9 @@ public class ScanIssue {
   private Long id;
   private Long resultId;
   private Long taskId;
+  private Long runId;
+  private Long executionUnitId;
+  private String resultCommitKey;
   private Long repositoryId;
   private Long ruleId;
   private String title;

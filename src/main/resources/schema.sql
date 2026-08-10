@@ -228,3 +228,195 @@ UPDATE code_repository SET operator_user_id=1,operator_user_name='admin' WHERE o
 UPDATE scan_task SET operator_user_id=1,operator_user_name='admin' WHERE operator_user_id IS NULL;
 UPDATE scan_result SET operator_user_id=1,operator_user_name='admin' WHERE operator_user_id IS NULL;
 UPDATE scan_issue SET operator_user_id=1,operator_user_name='admin' WHERE operator_user_id IS NULL;
+
+-- 详细方案增量结构：规则权限、应用、大模型配置、任务快照、扫描清单及断点续扫
+ALTER TABLE scan_rule ADD COLUMN IF NOT EXISTS visibility VARCHAR(20) DEFAULT 'PRIVATE';
+ALTER TABLE scan_rule ADD COLUMN IF NOT EXISTS owner_user_id BIGINT DEFAULT 1;
+ALTER TABLE scan_rule ADD COLUMN IF NOT EXISTS owner_user_name VARCHAR(128) DEFAULT 'admin';
+ALTER TABLE scan_rule ADD COLUMN IF NOT EXISTS check_rule_content CLOB;
+ALTER TABLE scan_rule ADD COLUMN IF NOT EXISTS result_update_content CLOB;
+ALTER TABLE scan_rule ADD COLUMN IF NOT EXISTS shared_by_user_id BIGINT;
+ALTER TABLE scan_rule ADD COLUMN IF NOT EXISTS shared_by_user_name VARCHAR(128);
+ALTER TABLE scan_rule ADD COLUMN IF NOT EXISTS shared_time TIMESTAMP;
+
+ALTER TABLE system_user ADD COLUMN IF NOT EXISTS external_user_id VARCHAR(128);
+ALTER TABLE system_user ADD COLUMN IF NOT EXISTS application VARCHAR(128);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_system_user_username ON system_user(username);
+
+ALTER TABLE code_repository ADD COLUMN IF NOT EXISTS repository_code VARCHAR(64);
+ALTER TABLE code_repository ADD COLUMN IF NOT EXISTS application VARCHAR(128);
+ALTER TABLE code_repository ADD COLUMN IF NOT EXISTS design_document_path VARCHAR(1000);
+
+ALTER TABLE scan_task ADD COLUMN IF NOT EXISTS owner_user_id BIGINT DEFAULT 1;
+ALTER TABLE scan_task ADD COLUMN IF NOT EXISTS owner_user_name VARCHAR(128) DEFAULT 'admin';
+ALTER TABLE scan_task ADD COLUMN IF NOT EXISTS current_snapshot_id BIGINT;
+ALTER TABLE scan_task ADD COLUMN IF NOT EXISTS current_run_id BIGINT;
+ALTER TABLE scan_task ADD COLUMN IF NOT EXISTS task_type VARCHAR(20);
+ALTER TABLE scan_task ADD COLUMN IF NOT EXISTS manifest_status VARCHAR(20);
+ALTER TABLE scan_task ADD COLUMN IF NOT EXISTS manifest_file_count INT DEFAULT 0;
+ALTER TABLE scan_task ADD COLUMN IF NOT EXISTS deleted BOOLEAN DEFAULT FALSE;
+
+CREATE TABLE IF NOT EXISTS model_prompt_template (
+ id BIGINT AUTO_INCREMENT PRIMARY KEY,
+ prompt_type VARCHAR(30) NOT NULL,
+ version_no INT NOT NULL,
+ prompt_content CLOB NOT NULL,
+ json_schema CLOB,
+ status VARCHAR(20) NOT NULL DEFAULT 'DRAFT',
+ operator_user_id BIGINT,
+ operator_user_name VARCHAR(128),
+ create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ CONSTRAINT uk_model_prompt_version UNIQUE(prompt_type, version_no)
+);
+
+CREATE TABLE IF NOT EXISTS user_model_credential (
+ id BIGINT AUTO_INCREMENT PRIMARY KEY,
+ user_id BIGINT NOT NULL,
+ credential_name VARCHAR(128) NOT NULL,
+ ucid VARCHAR(255) NOT NULL,
+ token_ciphertext VARCHAR(2000) NOT NULL,
+ token_masked VARCHAR(64),
+ enabled BOOLEAN DEFAULT TRUE,
+ runtime_status VARCHAR(20) DEFAULT 'AVAILABLE',
+ lease_id VARCHAR(64),
+ leased_run_id BIGINT,
+ lease_expire_time TIMESTAMP,
+ cooldown_until TIMESTAMP,
+ last_used_time TIMESTAMP,
+ last_test_time TIMESTAMP,
+ create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ CONSTRAINT uk_user_model_credential UNIQUE(user_id, ucid)
+);
+
+CREATE TABLE IF NOT EXISTS task_snapshot (
+ id BIGINT AUTO_INCREMENT PRIMARY KEY,
+ task_id BIGINT NOT NULL,
+ snapshot_version INT NOT NULL,
+ task_name_snapshot VARCHAR(128) NOT NULL,
+ description_snapshot VARCHAR(1000),
+ task_type VARCHAR(20) NOT NULL,
+ repository_id BIGINT NOT NULL,
+ source_snapshot CLOB,
+ application VARCHAR(128),
+ version_no VARCHAR(20),
+ scan_paths CLOB,
+ file_types VARCHAR(1000),
+ exclude_paths CLOB,
+ prompt_snapshot CLOB,
+ snapshot_hash VARCHAR(64),
+ server_root_path VARCHAR(1000),
+ created_by_user_id BIGINT,
+ created_by_user_name VARCHAR(128),
+ create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ CONSTRAINT uk_task_snapshot_version UNIQUE(task_id, snapshot_version)
+);
+
+CREATE TABLE IF NOT EXISTS task_snapshot_rule (
+ id BIGINT AUTO_INCREMENT PRIMARY KEY,
+ task_snapshot_id BIGINT NOT NULL,
+ rule_id BIGINT NOT NULL,
+ rule_type VARCHAR(20) NOT NULL,
+ rule_order INT NOT NULL,
+ rule_snapshot CLOB NOT NULL,
+ CONSTRAINT uk_task_snapshot_rule UNIQUE(task_snapshot_id, rule_id)
+);
+
+CREATE TABLE IF NOT EXISTS task_scan_manifest (
+ id BIGINT AUTO_INCREMENT PRIMARY KEY,
+ task_snapshot_id BIGINT NOT NULL,
+ manifest_version INT NOT NULL,
+ status VARCHAR(20) NOT NULL,
+ file_count INT DEFAULT 0,
+ excluded_count INT DEFAULT 0,
+ total_size BIGINT DEFAULT 0,
+ exclude_summary CLOB,
+ manifest_hash VARCHAR(64),
+ error_message VARCHAR(2000),
+ start_time TIMESTAMP,
+ finish_time TIMESTAMP,
+ create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ CONSTRAINT uk_task_manifest_version UNIQUE(task_snapshot_id, manifest_version)
+);
+
+CREATE TABLE IF NOT EXISTS task_scan_manifest_file (
+ id BIGINT AUTO_INCREMENT PRIMARY KEY,
+ manifest_id BIGINT NOT NULL,
+ relative_path VARCHAR(1000) NOT NULL,
+ file_type VARCHAR(32),
+ file_size BIGINT DEFAULT 0,
+ last_modified_time TIMESTAMP,
+ content_hash VARCHAR(64),
+ applicable_rule_count INT DEFAULT 0,
+ CONSTRAINT uk_task_manifest_file UNIQUE(manifest_id, relative_path)
+);
+CREATE INDEX IF NOT EXISTS idx_manifest_file_query ON task_scan_manifest_file(manifest_id,file_type);
+
+CREATE TABLE IF NOT EXISTS scan_task_run (
+ id BIGINT AUTO_INCREMENT PRIMARY KEY,
+ run_no VARCHAR(64) NOT NULL,
+ task_id BIGINT NOT NULL,
+ task_snapshot_id BIGINT NOT NULL,
+ manifest_id BIGINT NOT NULL,
+ status VARCHAR(30) NOT NULL,
+ stop_requested BOOLEAN DEFAULT FALSE,
+ resume_count INT DEFAULT 0,
+ total_units INT DEFAULT 0,
+ completed_units INT DEFAULT 0,
+ success_units INT DEFAULT 0,
+ failed_units INT DEFAULT 0,
+ issue_count INT DEFAULT 0,
+ started_by_user_id BIGINT,
+ started_by_user_name VARCHAR(128),
+ error_message VARCHAR(2000),
+ queue_time TIMESTAMP,
+ start_time TIMESTAMP,
+ end_time TIMESTAMP,
+ last_checkpoint_time TIMESTAMP,
+ create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ CONSTRAINT uk_scan_task_run_no UNIQUE(run_no)
+);
+CREATE INDEX IF NOT EXISTS idx_task_run_status ON scan_task_run(status,update_time);
+
+CREATE TABLE IF NOT EXISTS task_execution_unit (
+ id BIGINT AUTO_INCREMENT PRIMARY KEY,
+ run_id BIGINT NOT NULL,
+ manifest_file_id BIGINT NOT NULL,
+ task_snapshot_rule_id BIGINT NOT NULL,
+ segment_no INT DEFAULT 0,
+ stage VARCHAR(30) NOT NULL,
+ status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+ checkpoint_data CLOB,
+ preliminary_result CLOB,
+ retry_count INT DEFAULT 0,
+ lease_id VARCHAR(64),
+ lease_expire_time TIMESTAMP,
+ result_commit_key VARCHAR(128) NOT NULL,
+ error_message VARCHAR(2000),
+ start_time TIMESTAMP,
+ finish_time TIMESTAMP,
+ update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ CONSTRAINT uk_task_execution_unit UNIQUE(run_id,manifest_file_id,task_snapshot_rule_id,segment_no,stage),
+ CONSTRAINT uk_task_execution_commit UNIQUE(result_commit_key)
+);
+CREATE INDEX IF NOT EXISTS idx_execution_unit_pick ON task_execution_unit(run_id,status,id);
+
+ALTER TABLE scan_result ADD COLUMN IF NOT EXISTS run_id BIGINT;
+ALTER TABLE scan_result DROP CONSTRAINT IF EXISTS uk_scan_result_task;
+CREATE UNIQUE INDEX IF NOT EXISTS uk_scan_result_run ON scan_result(run_id);
+ALTER TABLE scan_issue ADD COLUMN IF NOT EXISTS run_id BIGINT;
+ALTER TABLE scan_issue ADD COLUMN IF NOT EXISTS execution_unit_id BIGINT;
+ALTER TABLE scan_issue ADD COLUMN IF NOT EXISTS result_commit_key VARCHAR(128);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_scan_issue_commit ON scan_issue(result_commit_key);
+
+INSERT INTO model_prompt_template(prompt_type,version_no,prompt_content,status,operator_user_id,operator_user_name)
+SELECT 'AI_CHECK',1,'你是代码扫描助手。请根据检查规则检查给定文件内容，只返回符合约定结构的JSON。','ACTIVE',1,'admin'
+WHERE NOT EXISTS(SELECT 1 FROM model_prompt_template WHERE prompt_type='AI_CHECK');
+INSERT INTO model_prompt_template(prompt_type,version_no,prompt_content,status,operator_user_id,operator_user_name)
+SELECT 'AI_RESULT_UPDATE',1,'你是扫描结果整理助手。请根据结果更新规则整理初步问题，只返回符合约定结构的JSON。','ACTIVE',1,'admin'
+WHERE NOT EXISTS(SELECT 1 FROM model_prompt_template WHERE prompt_type='AI_RESULT_UPDATE');
+INSERT INTO model_prompt_template(prompt_type,version_no,prompt_content,status,operator_user_id,operator_user_name)
+SELECT 'MD_CHECK',1,'你是设计文档扫描助手。请根据检查规则检查应用版本文档，只返回符合约定结构的JSON。','ACTIVE',1,'admin'
+WHERE NOT EXISTS(SELECT 1 FROM model_prompt_template WHERE prompt_type='MD_CHECK');

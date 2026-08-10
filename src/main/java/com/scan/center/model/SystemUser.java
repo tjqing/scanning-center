@@ -8,6 +8,8 @@ public class SystemUser {
   private Long id;
   private String username;
   private String displayName;
+  private String externalUserId;
+  private String application;
   private String roleCode;
   private String phone;
   private String email;
