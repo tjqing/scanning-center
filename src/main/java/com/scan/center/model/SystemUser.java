@@ -1,6 +1,7 @@
 package com.scan.center.model;
 
 import java.util.Date;
+import java.util.List;
 import lombok.Data;
 
 @Data
@@ -11,8 +12,8 @@ public class SystemUser {
   private String externalUserId;
   private String application;
   private String roleCode;
-  private String phone;
-  private String email;
+  private List<Long> repositoryIds;
+  private List<String> repositoryNames;
   private String description;
   private Boolean enabled;
   private Boolean deleted;

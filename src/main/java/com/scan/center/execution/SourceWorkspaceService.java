@@ -3,14 +3,9 @@ package com.scan.center.execution;
 import com.scan.center.exception.BusinessException;
 import com.scan.center.model.CodeRepository;
 import java.io.*;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
-import java.sql.*;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Stream;
-import javax.sql.DataSource;
 import org.eclipse.jgit.api.CloneCommand;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
@@ -23,19 +18,19 @@ public class SourceWorkspaceService {
   private final Path snapshotRoot;
   private final String gitUsername;
   private final String gitToken;
-  private final DataSource dataSource;
+  private final MdDocumentHttpClient mdClient;
 
   public SourceWorkspaceService(
       @Value("${scan-center.storage-root}") String storageRoot,
       @Value("${scan-center.workspace-root}") String workspaceRoot,
       @Value("${scan-center.git.username:}") String gitUsername,
       @Value("${scan-center.git.token:}") String gitToken,
-      DataSource dataSource) {
+      MdDocumentHttpClient mdClient) {
     this.storageRoot = Paths.get(storageRoot).toAbsolutePath().normalize();
     this.snapshotRoot = Paths.get(workspaceRoot).toAbsolutePath().normalize().resolve("snapshots");
     this.gitUsername = gitUsername == null ? "" : gitUsername;
     this.gitToken = gitToken == null ? "" : gitToken;
-    this.dataSource = dataSource;
+    this.mdClient = mdClient;
   }
 
   public Path prepare(Long snapshotId, CodeRepository repository, String versionNo) {
@@ -74,10 +69,10 @@ public class SourceWorkspaceService {
   }
 
   private void prepareMd(CodeRepository repository, String versionNo, Path target) throws Exception {
-    if (!"DATABASE".equals(repository.getSourceType())) throw new IOException("MD扫描源必须使用数据库获取方式");
+    if (!"HTTP".equals(repository.getSourceType())) throw new IOException("MD扫描源必须使用HTTP获取方式");
     if (blank(repository.getApplication())) throw new IOException("MD扫描源未配置所属应用");
     if (blank(versionNo) || !versionNo.matches("\\d{6}")) throw new IOException("MD扫描版本必须为YYYYMM格式");
-    fetchDatabaseDocuments(repository, repository.getApplication(), versionNo, target);
+    mdClient.download(repository.getApplication(), versionNo, target);
   }
 
   private void cloneRepository(CodeRepository repository, Path target) throws Exception {
@@ -87,52 +82,6 @@ public class SourceWorkspaceService {
     if (!gitToken.isEmpty())
       command.setCredentialsProvider(new UsernamePasswordCredentialsProvider(gitUsername.isEmpty() ? "token" : gitUsername, gitToken));
     try (Git ignored = command.call()) {}
-  }
-
-  private void fetchDatabaseDocuments(
-      CodeRepository repository, String application, String versionNo, Path target) throws Exception {
-    ParameterizedQuery query = parameterize(repository.getDocumentQuery(), application, versionNo);
-    try (Connection connection = dataSource.getConnection();
-         PreparedStatement statement = connection.prepareStatement(query.sql)) {
-      connection.setReadOnly(true); statement.setMaxRows(10000); statement.setQueryTimeout(60);
-      for (int i = 0; i < query.parameters.size(); i++) statement.setString(i + 1, query.parameters.get(i));
-      try (ResultSet rows = statement.executeQuery()) {
-        int index = 0;
-        while (rows.next()) {
-          index++;
-          String name = rows.getString(repository.getDocumentNameColumn());
-          String type = blank(repository.getDocumentTypeColumn()) ? "txt" : rows.getString(repository.getDocumentTypeColumn());
-          String safe = safeFileName(blank(name) ? "document-" + index : name);
-          if (!safe.contains(".")) safe += "." + safeFileName(type == null ? "txt" : type).toLowerCase(Locale.ROOT);
-          Path file = target.resolve(String.format("%05d-%s", index, safe)).normalize();
-          if (!file.startsWith(target)) throw new IOException("非法文档名称");
-          Object content = rows.getObject(repository.getDocumentContentColumn());
-          if (content instanceof byte[]) Files.write(file, (byte[]) content);
-          else if (content instanceof Blob) {
-            try (InputStream input = ((Blob) content).getBinaryStream()) {
-              Files.copy(input, file, StandardCopyOption.REPLACE_EXISTING);
-            }
-          } else Files.write(file, String.valueOf(content == null ? "" : content).getBytes(StandardCharsets.UTF_8));
-        }
-      }
-    }
-  }
-
-  private ParameterizedQuery parameterize(String sql, String application, String versionNo) throws IOException {
-    if (blank(sql)) throw new IOException("MD文档查询SQL为空");
-    Matcher matcher = Pattern.compile(":(application|version)\\b").matcher(sql);
-    StringBuffer prepared = new StringBuffer();
-    List<String> values = new ArrayList<String>();
-    boolean hasApplication = false, hasVersion = false;
-    while (matcher.find()) {
-      String name = matcher.group(1);
-      if ("application".equals(name)) { values.add(application); hasApplication = true; }
-      else { values.add(versionNo); hasVersion = true; }
-      matcher.appendReplacement(prepared, "?");
-    }
-    matcher.appendTail(prepared);
-    if (!hasApplication || !hasVersion) throw new IOException("MD文档查询必须包含:application和:version参数");
-    return new ParameterizedQuery(prepared.toString(), values);
   }
 
   private boolean containsRegularFile(Path root) throws IOException {
@@ -157,10 +106,6 @@ public class SourceWorkspaceService {
     try { deleteTree(path); } catch (Exception ignored) {}
   }
 
-  private String safeFileName(String value) {
-    return Paths.get(value).getFileName().toString().replaceAll("[^A-Za-z0-9._\\-\\u4e00-\\u9fa5]", "_");
-  }
-
   private String limit(String value, int size) {
     if (value == null) return "未知错误";
     return value.length() <= size ? value : value.substring(0, size);
@@ -170,12 +115,4 @@ public class SourceWorkspaceService {
     return value == null || value.trim().isEmpty();
   }
 
-  private static class ParameterizedQuery {
-    private final String sql;
-    private final List<String> parameters;
-    private ParameterizedQuery(String sql, List<String> parameters) {
-      this.sql = sql;
-      this.parameters = parameters;
-    }
-  }
 }

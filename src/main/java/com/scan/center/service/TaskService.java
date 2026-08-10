@@ -231,8 +231,8 @@ public class TaskService {
     int version = nextSnapshotVersion(task.getId());
     Map<String, Object> prompts = promptSnapshot(validated.type, validated.repository.getScanSourceType());
     List<String> paths = normalizedPaths(dto.getScanPaths());
-    List<String> types = normalizedTypes(dto.getFileTypes(), validated.repository.getFileTypes());
-    List<String> excludes = normalizedExcludes(dto.getExcludePaths(), validated.repository.getExcludePatterns());
+    List<String> types = normalizedTypes(dto.getFileTypes(), null);
+    List<String> excludes = normalizedExcludes(dto.getExcludePaths(), null);
     Map<String, Object> hashContent = new LinkedHashMap<String, Object>();
     hashContent.put("taskType", validated.type); hashContent.put("scanSourceType", validated.repository.getScanSourceType());
     hashContent.put("repositoryId", validated.repository.getId());
@@ -351,8 +351,11 @@ public class TaskService {
     for (ScanRule rule : rules) if (!type.equals(rule.getRuleType())) throw new BusinessException(30032, "同一任务只能选择同类型规则");
     if ("MD".equals(repository.getScanSourceType())) {
       if (!"AI".equals(type)) throw new BusinessException(30041, "MD扫描源只能选择AI规则");
-      if (blank(dto.getVersionNo()) || !dto.getVersionNo().matches("\\d{6}"))
-        throw new BusinessException(30033, "MD扫描源任务必须填写YYYYMM格式版本");
+      if (blank(repository.getVersionNo()) || !repository.getVersionNo().matches("\\d{6}"))
+        throw new BusinessException(30033, "MD扫描源未配置有效版本");
+      dto.setVersionNo(repository.getVersionNo());
+    } else {
+      dto.setVersionNo(null);
     }
     return new ValidatedTask(repository, rules, type);
   }
@@ -426,8 +429,8 @@ public class TaskService {
   private String scopeJson(TaskCreateDTO dto, CodeRepository repository) {
     Map<String, Object> scope = new LinkedHashMap<String, Object>();
     scope.put("scanPaths", normalizedPaths(dto.getScanPaths()));
-    scope.put("fileTypes", normalizedTypes(dto.getFileTypes(), repository.getFileTypes()));
-    scope.put("excludePaths", normalizedExcludes(dto.getExcludePaths(), repository.getExcludePatterns()));
+    scope.put("fileTypes", normalizedTypes(dto.getFileTypes(), null));
+    scope.put("excludePaths", normalizedExcludes(dto.getExcludePaths(), null));
     scope.put("versionNo", dto.getVersionNo());
     scope.put("scanSourceType", repository.getScanSourceType());
     try { return json.writeValueAsString(scope); } catch (Exception e) { throw new BusinessException(30035, "扫描范围格式错误"); }

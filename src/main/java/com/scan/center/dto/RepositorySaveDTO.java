@@ -5,7 +5,6 @@ import lombok.Data;
 
 @Data
 public class RepositorySaveDTO {
-  @NotBlank
   @Size(max = 128)
   private String repositoryName;
 
@@ -14,6 +13,11 @@ public class RepositorySaveDTO {
 
   @Size(max = 128)
   private String application;
+
+  private Long repositoryCatalogId;
+
+  @Size(max = 20)
+  private String versionNo;
 
   @NotBlank private String scanSourceType;
 
@@ -26,30 +30,7 @@ public class RepositorySaveDTO {
   private String repositoryUrl;
 
   @Size(max = 128)
-  private String username;
-
-  @Size(max = 2000)
-  private String token;
-
-  @Size(max = 128)
   private String defaultBranch;
-
-  @Size(max = 1000)
-  private String scanPaths;
-
-  @Size(max = 1000)
-  private String excludePatterns;
-
-  @Size(max = 500)
-  private String fileTypes;
-
-  @Size(max = 1000) private String databaseUrl;
-  @Size(max = 128) private String databaseUsername;
-  @Size(max = 2000) private String databasePassword;
-  @Size(max = 4000) private String documentQuery;
-  @Size(max = 128) private String documentNameColumn;
-  @Size(max = 128) private String documentContentColumn;
-  @Size(max = 128) private String documentTypeColumn;
 
   private Boolean enabled;
 }

@@ -13,4 +13,8 @@ public interface UserMapper {
   int update(SystemUser user);
   int updateStatus(@Param("id") Long id,@Param("enabled") Boolean enabled);
   int logicalDelete(Long id);
+  int deleteRepositoryRelations(Long userId);
+  int insertRepositoryRelation(@Param("userId") Long userId, @Param("repositoryId") Long repositoryId,
+      @Param("createUserId") Long createUserId, @Param("createUserName") String createUserName);
+  int countRepositoryRelation(@Param("userId") Long userId, @Param("repositoryId") Long repositoryId);
 }

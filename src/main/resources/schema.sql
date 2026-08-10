@@ -9,25 +9,17 @@ CREATE TABLE IF NOT EXISTS scan_rule (
 );
 CREATE TABLE IF NOT EXISTS system_user (
  id BIGINT AUTO_INCREMENT PRIMARY KEY, username VARCHAR(64) NOT NULL, display_name VARCHAR(128) NOT NULL,
- role_code VARCHAR(20) NOT NULL, phone VARCHAR(32), email VARCHAR(128), description VARCHAR(500),
+ role_code VARCHAR(20) NOT NULL, description VARCHAR(500),
  enabled BOOLEAN DEFAULT TRUE, deleted BOOLEAN DEFAULT FALSE,
  create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP, update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_user_query ON system_user(deleted,enabled,role_code);
 CREATE TABLE IF NOT EXISTS code_repository (
  id BIGINT AUTO_INCREMENT PRIMARY KEY, repository_name VARCHAR(128) NOT NULL, source_type VARCHAR(20) NOT NULL,
- description VARCHAR(1000), repository_url VARCHAR(1000), username VARCHAR(128), encrypted_token VARCHAR(2000),
- default_branch VARCHAR(128), scan_paths VARCHAR(1000), exclude_patterns VARCHAR(1000), file_types VARCHAR(500),
+ description VARCHAR(1000), repository_url VARCHAR(1000), default_branch VARCHAR(128),
  storage_key VARCHAR(500), original_file_name VARCHAR(255), enabled BOOLEAN DEFAULT TRUE, deleted BOOLEAN DEFAULT FALSE,
  last_scan_time TIMESTAMP, create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP, update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-ALTER TABLE code_repository ADD COLUMN IF NOT EXISTS database_url VARCHAR(1000);
-ALTER TABLE code_repository ADD COLUMN IF NOT EXISTS database_username VARCHAR(128);
-ALTER TABLE code_repository ADD COLUMN IF NOT EXISTS encrypted_database_password VARCHAR(2000);
-ALTER TABLE code_repository ADD COLUMN IF NOT EXISTS document_query VARCHAR(4000);
-ALTER TABLE code_repository ADD COLUMN IF NOT EXISTS document_name_column VARCHAR(128);
-ALTER TABLE code_repository ADD COLUMN IF NOT EXISTS document_content_column VARCHAR(128);
-ALTER TABLE code_repository ADD COLUMN IF NOT EXISTS document_type_column VARCHAR(128);
 CREATE TABLE IF NOT EXISTS scan_task (
  id BIGINT AUTO_INCREMENT PRIMARY KEY, task_no VARCHAR(64) NOT NULL, task_name VARCHAR(128) NOT NULL,
  description VARCHAR(1000), repository_id BIGINT NOT NULL, scope_json CLOB, status VARCHAR(30) NOT NULL,
@@ -109,8 +101,6 @@ COMMENT ON COLUMN system_user.id IS '用户ID：主键';
 COMMENT ON COLUMN system_user.username IS '用户名';
 COMMENT ON COLUMN system_user.display_name IS '显示名称';
 COMMENT ON COLUMN system_user.role_code IS '角色编码';
-COMMENT ON COLUMN system_user.phone IS '手机号码';
-COMMENT ON COLUMN system_user.email IS '电子邮箱';
 COMMENT ON COLUMN system_user.description IS '用户描述';
 COMMENT ON COLUMN system_user.enabled IS '是否启用';
 COMMENT ON COLUMN system_user.deleted IS '是否删除';
@@ -123,12 +113,7 @@ COMMENT ON COLUMN code_repository.repository_name IS '仓库名称';
 COMMENT ON COLUMN code_repository.source_type IS '数据源类型';
 COMMENT ON COLUMN code_repository.description IS '仓库描述';
 COMMENT ON COLUMN code_repository.repository_url IS '仓库地址';
-COMMENT ON COLUMN code_repository.username IS '仓库访问用户名';
-COMMENT ON COLUMN code_repository.encrypted_token IS '加密访问令牌';
 COMMENT ON COLUMN code_repository.default_branch IS '默认分支';
-COMMENT ON COLUMN code_repository.scan_paths IS '扫描路径';
-COMMENT ON COLUMN code_repository.exclude_patterns IS '排除模式';
-COMMENT ON COLUMN code_repository.file_types IS '扫描文件类型';
 COMMENT ON COLUMN code_repository.storage_key IS '存储标识';
 COMMENT ON COLUMN code_repository.original_file_name IS '原始文件名';
 COMMENT ON COLUMN code_repository.enabled IS '是否启用';
@@ -136,13 +121,6 @@ COMMENT ON COLUMN code_repository.deleted IS '是否删除';
 COMMENT ON COLUMN code_repository.last_scan_time IS '最后扫描时间';
 COMMENT ON COLUMN code_repository.create_time IS '创建时间';
 COMMENT ON COLUMN code_repository.update_time IS '更新时间';
-COMMENT ON COLUMN code_repository.database_url IS '数据库连接地址';
-COMMENT ON COLUMN code_repository.database_username IS '数据库用户名';
-COMMENT ON COLUMN code_repository.encrypted_database_password IS '加密数据库密码';
-COMMENT ON COLUMN code_repository.document_query IS '文档查询语句';
-COMMENT ON COLUMN code_repository.document_name_column IS '文档名称字段';
-COMMENT ON COLUMN code_repository.document_content_column IS '文档内容字段';
-COMMENT ON COLUMN code_repository.document_type_column IS '文档类型字段';
 COMMENT ON COLUMN code_repository.operator_user_id IS '操作用户ID';
 COMMENT ON COLUMN code_repository.operator_user_name IS '操作用户名称';
 
@@ -243,11 +221,40 @@ ALTER TABLE system_user ADD COLUMN IF NOT EXISTS external_user_id VARCHAR(128);
 ALTER TABLE system_user ADD COLUMN IF NOT EXISTS application VARCHAR(128);
 CREATE UNIQUE INDEX IF NOT EXISTS uk_system_user_username ON system_user(username);
 
+CREATE TABLE IF NOT EXISTS repository_catalog (
+ id BIGINT AUTO_INCREMENT PRIMARY KEY,
+ repository_name VARCHAR(255) NOT NULL,
+ repository_url VARCHAR(1000) NOT NULL,
+ application VARCHAR(20) NOT NULL,
+ enabled BOOLEAN DEFAULT TRUE,
+ deleted BOOLEAN DEFAULT FALSE,
+ operator_user_id BIGINT,
+ operator_user_name VARCHAR(128),
+ create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ CONSTRAINT uk_repository_catalog_name UNIQUE(repository_name)
+);
+CREATE INDEX IF NOT EXISTS idx_repository_catalog_application ON repository_catalog(application,enabled,deleted);
+
+CREATE TABLE IF NOT EXISTS user_repository_relation (
+ id BIGINT AUTO_INCREMENT PRIMARY KEY,
+ user_id BIGINT NOT NULL,
+ repository_id BIGINT NOT NULL,
+ create_user_id BIGINT,
+ create_user_name VARCHAR(128),
+ create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ CONSTRAINT uk_user_repository_relation UNIQUE(user_id,repository_id)
+);
+CREATE INDEX IF NOT EXISTS idx_user_repository_user ON user_repository_relation(user_id);
+
 ALTER TABLE code_repository ADD COLUMN IF NOT EXISTS repository_code VARCHAR(64);
 ALTER TABLE code_repository ADD COLUMN IF NOT EXISTS application VARCHAR(128);
 ALTER TABLE code_repository ADD COLUMN IF NOT EXISTS scan_source_type VARCHAR(20) DEFAULT 'CODE';
+ALTER TABLE code_repository ADD COLUMN IF NOT EXISTS repository_catalog_id BIGINT;
+ALTER TABLE code_repository ADD COLUMN IF NOT EXISTS version_no VARCHAR(20);
 ALTER TABLE code_repository DROP COLUMN IF EXISTS design_document_path;
-UPDATE code_repository SET scan_source_type=CASE WHEN source_type='DATABASE' THEN 'MD' ELSE 'CODE' END;
+UPDATE code_repository SET scan_source_type=CASE WHEN source_type IN ('DATABASE','HTTP') THEN 'MD' ELSE 'CODE' END;
+UPDATE code_repository SET source_type='HTTP' WHERE source_type='DATABASE';
 UPDATE scan_rule SET rule_type='AI' WHERE rule_type='MD';
 
 ALTER TABLE scan_task ADD COLUMN IF NOT EXISTS owner_user_id BIGINT DEFAULT 1;

@@ -61,4 +61,9 @@ public class RepositoryController {
     s.upload(id, file);
     return ApiResponse.success(null);
   }
+
+  @GetMapping("/md/versions")
+  public ApiResponse<java.util.List<String>> mdVersions(@RequestParam String application) {
+    return ApiResponse.success(s.mdVersions(application));
+  }
 }
