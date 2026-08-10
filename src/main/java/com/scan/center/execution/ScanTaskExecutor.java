@@ -169,7 +169,7 @@ public class ScanTaskExecutor {
     try {
       String bounded = content.length() <= maxContentLength ? content : content.substring(0, maxContentLength);
       String response;
-      if ("AI".equals(context.taskType)) {
+      if ("CODE".equals(context.scanSourceType)) {
         String preliminary = unit.preliminaryResult;
         if (blank(preliminary)) {
           String checkPrompt = prompt(context.promptSnapshot, "AI_CHECK");
@@ -286,12 +286,13 @@ public class ScanTaskExecutor {
 
   private RunContext context(Long runId) {
     return jdbc.queryForObject(
-        "SELECT r.id AS run_id,r.task_id,r.task_snapshot_id,r.manifest_id,t.repository_id,t.owner_user_id,t.owner_user_name,s.task_type,s.application,s.version_no,s.prompt_snapshot,s.server_root_path FROM scan_task_run r JOIN scan_task t ON t.id=r.task_id JOIN task_snapshot s ON s.id=r.task_snapshot_id WHERE r.id=?",
+        "SELECT r.id AS run_id,r.task_id,r.task_snapshot_id,r.manifest_id,t.repository_id,t.owner_user_id,t.owner_user_name,s.task_type,s.scan_source_type,s.application,s.version_no,s.prompt_snapshot,s.server_root_path FROM scan_task_run r JOIN scan_task t ON t.id=r.task_id JOIN task_snapshot s ON s.id=r.task_snapshot_id WHERE r.id=?",
         new Object[] {runId}, (rs, row) -> {
           RunContext v = new RunContext(); v.runId = rs.getLong("run_id"); v.taskId = rs.getLong("task_id");
           v.snapshotId = rs.getLong("task_snapshot_id"); v.manifestId = rs.getLong("manifest_id"); v.repositoryId = rs.getLong("repository_id");
           v.ownerUserId = rs.getLong("owner_user_id"); v.ownerUserName = rs.getString("owner_user_name");
-          v.taskType = rs.getString("task_type"); v.application = rs.getString("application"); v.versionNo = rs.getString("version_no");
+          v.taskType = rs.getString("task_type"); v.scanSourceType = rs.getString("scan_source_type");
+          v.application = rs.getString("application"); v.versionNo = rs.getString("version_no");
           v.promptSnapshot = rs.getString("prompt_snapshot"); v.serverRootPath = rs.getString("server_root_path"); return v;
         });
   }
@@ -400,7 +401,7 @@ public class ScanTaskExecutor {
 
   private static class RunContext {
     Long runId, taskId, snapshotId, manifestId, repositoryId, ownerUserId, resultId;
-    String ownerUserName, taskType, application, versionNo, promptSnapshot, serverRootPath;
+    String ownerUserName, taskType, scanSourceType, application, versionNo, promptSnapshot, serverRootPath;
   }
 
   private static class ExecutionUnit {

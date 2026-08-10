@@ -15,8 +15,7 @@ public class RepositorySaveDTO {
   @Size(max = 128)
   private String application;
 
-  @Size(max = 1000)
-  private String designDocumentPath;
+  @NotBlank private String scanSourceType;
 
   @NotBlank private String sourceType;
 

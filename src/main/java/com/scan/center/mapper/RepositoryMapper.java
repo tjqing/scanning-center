@@ -19,8 +19,6 @@ public interface RepositoryMapper {
 
   CodeRepository findById(Long id);
 
-  List<CodeRepository> findByApplication(@Param("application") String application);
-
   int insert(CodeRepository value);
 
   int update(CodeRepository value);

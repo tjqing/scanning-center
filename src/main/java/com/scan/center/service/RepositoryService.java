@@ -122,8 +122,14 @@ public class RepositoryService {
   }
 
   private void validate(RepositorySaveDTO dto) {
+    if (!java.util.Arrays.asList("CODE", "MD").contains(dto.getScanSourceType()))
+      throw new BusinessException(20018, "扫描内容类型必须为CODE或MD");
     if (!java.util.Arrays.asList("GIT", "UPLOAD", "DATABASE").contains(dto.getSourceType()))
       throw new BusinessException(20011, "扫描源类型不合法");
+    if ("MD".equals(dto.getScanSourceType()) && !"DATABASE".equals(dto.getSourceType()))
+      throw new BusinessException(20019, "MD扫描源只能从数据库获取");
+    if ("CODE".equals(dto.getScanSourceType()) && "DATABASE".equals(dto.getSourceType()))
+      throw new BusinessException(20020, "CODE扫描源仅支持Git拉取或ZIP上传");
     validateCommaList(dto.getFileTypes(), "扫描文件类型", "[A-Za-z0-9]+(?:[._+-][A-Za-z0-9]+)*");
     validateCommaList(dto.getExcludePatterns(), "排除目录", "[^,，;；\\s]+");
     validateCommaList(dto.getScanPaths(), "扫描路径", "[^,，;；\\s]+");
@@ -134,25 +140,21 @@ public class RepositoryService {
       if (blank(dto.getRepositoryCode()) || !dto.getRepositoryCode().matches("[A-Za-z0-9_-]+"))
         throw new BusinessException(20015, "Git代码库必须填写合法的代码库编码");
       if (blank(dto.getApplication())) throw new BusinessException(20016, "Git代码库必须配置所属应用");
-      if (!blank(dto.getDesignDocumentPath())) validateRelativePath(dto.getDesignDocumentPath(), "设计文档目录");
     }
     if ("DATABASE".equals(dto.getSourceType())) {
+      if (blank(dto.getApplication())) throw new BusinessException(20016, "MD数据库扫描源必须配置所属应用");
       if (blank(dto.getDocumentQuery())
           || blank(dto.getDocumentNameColumn()) || blank(dto.getDocumentContentColumn()))
         throw new BusinessException(20009, "数据库文档源必须填写查询SQL、名称字段和内容字段");
       String sql = dto.getDocumentQuery().trim().toLowerCase(java.util.Locale.ROOT);
       if (!sql.startsWith("select") || sql.contains(";"))
         throw new BusinessException(20010, "文档查询仅允许单条SELECT语句");
+      if (!dto.getDocumentQuery().contains(":application") || !dto.getDocumentQuery().contains(":version"))
+        throw new BusinessException(20021, "MD文档查询必须包含:application和:version参数");
       validateColumnName(dto.getDocumentNameColumn(), "名称字段");
       validateColumnName(dto.getDocumentContentColumn(), "内容字段");
       if (!blank(dto.getDocumentTypeColumn())) validateColumnName(dto.getDocumentTypeColumn(), "类型字段");
     }
-  }
-
-  private void validateRelativePath(String value, String name) {
-    Path path = Paths.get(value).normalize();
-    if (path.isAbsolute() || value.contains(".."))
-      throw new BusinessException(20017, name + "必须是代码库内的安全相对路径");
   }
 
   private void validateCommaList(String value, String name, String tokenPattern) {

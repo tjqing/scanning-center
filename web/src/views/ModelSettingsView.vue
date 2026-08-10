@@ -2,7 +2,7 @@
   <div class="page">
     <el-tabs v-model="tab">
       <el-tab-pane label="UCID / Token 凭证池" name="credentials">
-        <div class="toolbar"><el-alert :title="'启用且有效的凭证数即 AI、MD 共享并发数；当前启用 '+enabledCount+' 条'" type="info" :closable="false"/><el-button type="success" @click="editCredential()">新增凭证</el-button></div>
+        <div class="toolbar"><el-alert :title="'启用且有效的凭证数即AI规则扫描CODE和MD时共享的并发数；当前启用 '+enabledCount+' 条'" type="info" :closable="false"/><el-button type="success" @click="editCredential()">新增凭证</el-button></div>
         <el-table :data="credentials" v-loading="loading">
           <el-table-column prop="credentialName" label="凭证名称"/><el-table-column prop="ucid" label="UCID"/><el-table-column prop="tokenMasked" label="Token"/>
           <el-table-column prop="runtimeStatus" label="运行状态" width="120"/><el-table-column prop="lastTestTime" label="最近测试" width="170"/>

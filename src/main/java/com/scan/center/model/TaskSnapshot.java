@@ -11,6 +11,7 @@ public class TaskSnapshot {
   private String taskNameSnapshot;
   private String descriptionSnapshot;
   private String taskType;
+  private String scanSourceType;
   private Long repositoryId;
   private String sourceSnapshot;
   private String application;

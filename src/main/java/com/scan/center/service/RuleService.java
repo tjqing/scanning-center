@@ -92,7 +92,7 @@ public class RuleService {
   private void validate(RuleSaveDTO dto) {
     if (!dto.getRuleCode().matches("[A-Za-z0-9_-]+"))
       throw new BusinessException(10006, "规则编码只能包含字母、数字、下划线和短横线");
-    if (!java.util.Arrays.asList("NORMAL", "AI", "MD").contains(dto.getRuleType())
+    if (!java.util.Arrays.asList("NORMAL", "AI").contains(dto.getRuleType())
         || !java.util.Arrays.asList("ALL", "CODE", "DOCUMENT").contains(dto.getTargetType())
         || !java.util.Arrays.asList("HIGH", "MEDIUM", "LOW", "INFO").contains(dto.getRiskLevel()))
       throw new BusinessException(10007, "规则类型、扫描对象或风险等级不合法");
@@ -107,11 +107,9 @@ public class RuleService {
         } catch (Exception e) {
           throw new BusinessException(10004, "正则表达式不合法");
         }
-    } else if ("AI".equals(dto.getRuleType())) {
+    } else {
       if (blank(dto.getCheckRuleContent()) || blank(dto.getResultUpdateContent()))
         throw new BusinessException(10005, "AI规则必须分别配置检查规则和结果更新");
-    } else if ("MD".equals(dto.getRuleType()) && blank(dto.getCheckRuleContent())) {
-      throw new BusinessException(10005, "MD规则必须配置检查规则");
     }
     if (dto.getVisibility() != null && !java.util.Arrays.asList("PRIVATE", "SHARED").contains(dto.getVisibility()))
       throw new BusinessException(10009, "规则可见范围不合法");

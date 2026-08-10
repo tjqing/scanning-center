@@ -245,7 +245,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_system_user_username ON system_user(usernam
 
 ALTER TABLE code_repository ADD COLUMN IF NOT EXISTS repository_code VARCHAR(64);
 ALTER TABLE code_repository ADD COLUMN IF NOT EXISTS application VARCHAR(128);
-ALTER TABLE code_repository ADD COLUMN IF NOT EXISTS design_document_path VARCHAR(1000);
+ALTER TABLE code_repository ADD COLUMN IF NOT EXISTS scan_source_type VARCHAR(20) DEFAULT 'CODE';
+ALTER TABLE code_repository DROP COLUMN IF EXISTS design_document_path;
+UPDATE code_repository SET scan_source_type=CASE WHEN source_type='DATABASE' THEN 'MD' ELSE 'CODE' END;
+UPDATE scan_rule SET rule_type='AI' WHERE rule_type='MD';
 
 ALTER TABLE scan_task ADD COLUMN IF NOT EXISTS owner_user_id BIGINT DEFAULT 1;
 ALTER TABLE scan_task ADD COLUMN IF NOT EXISTS owner_user_name VARCHAR(128) DEFAULT 'admin';
@@ -255,6 +258,7 @@ ALTER TABLE scan_task ADD COLUMN IF NOT EXISTS task_type VARCHAR(20);
 ALTER TABLE scan_task ADD COLUMN IF NOT EXISTS manifest_status VARCHAR(20);
 ALTER TABLE scan_task ADD COLUMN IF NOT EXISTS manifest_file_count INT DEFAULT 0;
 ALTER TABLE scan_task ADD COLUMN IF NOT EXISTS deleted BOOLEAN DEFAULT FALSE;
+UPDATE scan_task SET task_type='AI' WHERE task_type='MD';
 
 CREATE TABLE IF NOT EXISTS model_prompt_template (
  id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -297,6 +301,7 @@ CREATE TABLE IF NOT EXISTS task_snapshot (
  task_name_snapshot VARCHAR(128) NOT NULL,
  description_snapshot VARCHAR(1000),
  task_type VARCHAR(20) NOT NULL,
+ scan_source_type VARCHAR(20) NOT NULL DEFAULT 'CODE',
  repository_id BIGINT NOT NULL,
  source_snapshot CLOB,
  application VARCHAR(128),
@@ -312,6 +317,8 @@ CREATE TABLE IF NOT EXISTS task_snapshot (
  create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
  CONSTRAINT uk_task_snapshot_version UNIQUE(task_id, snapshot_version)
 );
+ALTER TABLE task_snapshot ADD COLUMN IF NOT EXISTS scan_source_type VARCHAR(20) DEFAULT 'CODE';
+UPDATE task_snapshot SET scan_source_type='MD',task_type='AI' WHERE task_type='MD';
 
 CREATE TABLE IF NOT EXISTS task_snapshot_rule (
  id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -322,6 +329,7 @@ CREATE TABLE IF NOT EXISTS task_snapshot_rule (
  rule_snapshot CLOB NOT NULL,
  CONSTRAINT uk_task_snapshot_rule UNIQUE(task_snapshot_id, rule_id)
 );
+UPDATE task_snapshot_rule SET rule_type='AI' WHERE rule_type='MD';
 
 CREATE TABLE IF NOT EXISTS task_scan_manifest (
  id BIGINT AUTO_INCREMENT PRIMARY KEY,

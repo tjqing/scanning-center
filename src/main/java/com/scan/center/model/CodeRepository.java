@@ -9,7 +9,7 @@ public class CodeRepository {
   private String repositoryName;
   private String repositoryCode;
   private String application;
-  private String designDocumentPath;
+  private String scanSourceType;
   private String sourceType;
   private String description;
   private String repositoryUrl;

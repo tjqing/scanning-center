@@ -178,11 +178,11 @@ public class TaskService {
     TaskManifest manifest = currentManifest(id);
     if (!"READY".equals(manifest.getStatus())) throw new BusinessException(30025, "扫描清单尚未就绪");
     verifyManifest(snapshot, manifest);
-    if (("AI".equals(snapshot.getTaskType()) || "MD".equals(snapshot.getTaskType()))
+    if ("AI".equals(snapshot.getTaskType())
         && modelConfigService.availableCredentialCount(task.getOwnerUserId()) == 0)
-      throw new BusinessException(30026, "AI或MD任务至少需要一条启用且有效的UCID/Token");
+      throw new BusinessException(30026, "AI任务至少需要一条启用且有效的UCID/Token");
     Long runId = insertRun(task, snapshot, manifest);
-    int units = createExecutionUnits(runId, manifest.getId(), snapshot.getId(), snapshot.getTaskType());
+    int units = createExecutionUnits(runId, manifest.getId(), snapshot.getId(), snapshot.getTaskType(), snapshot.getScanSourceType());
     jdbc.update("UPDATE scan_task_run SET total_units=? WHERE id=?", units, runId);
     jdbc.update(
         "UPDATE scan_task SET current_run_id=?,status='QUEUED',cancel_requested=FALSE,total_files=?,completed_files=0,success_files=0,failed_files=0,issue_count=0,error_message=NULL,start_time=NULL,end_time=NULL,update_time=CURRENT_TIMESTAMP WHERE id=?",
@@ -204,7 +204,7 @@ public class TaskService {
   public void resume(Long taskId) {
     ScanTask task = get(taskId);
     if (task.getCurrentRunId() == null) throw new BusinessException(30027, "当前任务没有可继续的运行");
-    if (("AI".equals(task.getTaskType()) || "MD".equals(task.getTaskType()))
+    if ("AI".equals(task.getTaskType())
         && modelConfigService.availableCredentialCount(task.getOwnerUserId()) == 0)
       throw new BusinessException(30026, "继续任务前请启用至少一条有效UCID/Token");
     if (jdbc.update("UPDATE scan_task_run SET status='QUEUED',stop_requested=FALSE,resume_count=resume_count+1,error_message=NULL,queue_time=CURRENT_TIMESTAMP,update_time=CURRENT_TIMESTAMP WHERE id=? AND status='PAUSED'", task.getCurrentRunId()) != 1)
@@ -229,12 +229,13 @@ public class TaskService {
 
   private void createSnapshotAndManifest(ScanTask task, TaskCreateDTO dto, ValidatedTask validated) {
     int version = nextSnapshotVersion(task.getId());
-    Map<String, Object> prompts = promptSnapshot(validated.type);
+    Map<String, Object> prompts = promptSnapshot(validated.type, validated.repository.getScanSourceType());
     List<String> paths = normalizedPaths(dto.getScanPaths());
     List<String> types = normalizedTypes(dto.getFileTypes(), validated.repository.getFileTypes());
     List<String> excludes = normalizedExcludes(dto.getExcludePaths(), validated.repository.getExcludePatterns());
     Map<String, Object> hashContent = new LinkedHashMap<String, Object>();
-    hashContent.put("taskType", validated.type); hashContent.put("repositoryId", validated.repository.getId());
+    hashContent.put("taskType", validated.type); hashContent.put("scanSourceType", validated.repository.getScanSourceType());
+    hashContent.put("repositoryId", validated.repository.getId());
     hashContent.put("version", dto.getVersionNo()); hashContent.put("paths", paths); hashContent.put("types", types);
     hashContent.put("excludes", excludes); hashContent.put("rules", dto.getRuleIds()); hashContent.put("prompts", prompts);
     Long snapshotId = insertSnapshot(task, dto, validated, version, paths, types, excludes, prompts, sha256Json(hashContent));
@@ -243,7 +244,7 @@ public class TaskService {
       for (ScanRule rule : validated.rules)
         jdbc.update("INSERT INTO task_snapshot_rule(task_snapshot_id,rule_id,rule_type,rule_order,rule_snapshot) VALUES(?,?,?,?,?)",
             snapshotId, rule.getId(), rule.getRuleType(), order++, json.writeValueAsString(rule));
-      Path root = workspaceService.prepare(snapshotId, validated.repository, validated.type, dto.getVersionNo());
+      Path root = workspaceService.prepare(snapshotId, validated.repository, dto.getVersionNo());
       jdbc.update("UPDATE task_snapshot SET server_root_path=? WHERE id=?", root.toString(), snapshotId);
       TaskSnapshot snapshot = snapshot(task.getId(), snapshotId);
       Long manifestId = generateManifest(task, snapshot, paths, types, excludes, validated.rules.size());
@@ -326,10 +327,10 @@ public class TaskService {
     return key.getKey().longValue();
   }
 
-  private int createExecutionUnits(Long runId, Long manifestId, Long snapshotId, String type) {
+  private int createExecutionUnits(Long runId, Long manifestId, Long snapshotId, String type, String scanSourceType) {
     List<Long> files = jdbc.query("SELECT id FROM task_scan_manifest_file WHERE manifest_id=? ORDER BY id", new Object[] {manifestId}, (rs, row) -> rs.getLong(1));
     List<Long> rules = jdbc.query("SELECT id FROM task_snapshot_rule WHERE task_snapshot_id=? ORDER BY rule_order", new Object[] {snapshotId}, (rs, row) -> rs.getLong(1));
-    String stage = "NORMAL".equals(type) ? "NORMAL_MATCH" : ("AI".equals(type) ? "AI_CHECK" : "MD_CHECK");
+    String stage = "NORMAL".equals(type) ? "NORMAL_MATCH" : ("MD".equals(scanSourceType) ? "MD_CHECK" : "AI_CHECK");
     int count = 0;
     for (Long file : files) for (Long rule : rules) {
       String key = sha256(runId + ":" + file + ":" + rule + ":0:" + stage);
@@ -348,17 +349,23 @@ public class TaskService {
     if (rules.size() != new HashSet<Long>(dto.getRuleIds()).size()) throw new BusinessException(30003, "存在无效或停用规则");
     String type = rules.get(0).getRuleType();
     for (ScanRule rule : rules) if (!type.equals(rule.getRuleType())) throw new BusinessException(30032, "同一任务只能选择同类型规则");
-    if ("MD".equals(type) && (blank(dto.getVersionNo()) || !dto.getVersionNo().matches("\\d{6}")))
-      throw new BusinessException(30033, "MD任务必须填写YYYYMM格式版本");
+    if ("MD".equals(repository.getScanSourceType())) {
+      if (!"AI".equals(type)) throw new BusinessException(30041, "MD扫描源只能选择AI规则");
+      if (blank(dto.getVersionNo()) || !dto.getVersionNo().matches("\\d{6}"))
+        throw new BusinessException(30033, "MD扫描源任务必须填写YYYYMM格式版本");
+    }
     return new ValidatedTask(repository, rules, type);
   }
 
-  private Map<String, Object> promptSnapshot(String type) {
+  private Map<String, Object> promptSnapshot(String type, String scanSourceType) {
     Map<String, Object> prompts = new LinkedHashMap<String, Object>();
     if ("AI".equals(type)) {
-      prompts.put("AI_CHECK", modelConfigService.activePrompt("AI_CHECK"));
-      prompts.put("AI_RESULT_UPDATE", modelConfigService.activePrompt("AI_RESULT_UPDATE"));
-    } else if ("MD".equals(type)) prompts.put("MD_CHECK", modelConfigService.activePrompt("MD_CHECK"));
+      if ("MD".equals(scanSourceType)) prompts.put("MD_CHECK", modelConfigService.activePrompt("MD_CHECK"));
+      else {
+        prompts.put("AI_CHECK", modelConfigService.activePrompt("AI_CHECK"));
+        prompts.put("AI_RESULT_UPDATE", modelConfigService.activePrompt("AI_RESULT_UPDATE"));
+      }
+    }
     return prompts;
   }
 
@@ -371,13 +378,13 @@ public class TaskService {
       String pathJson = json.writeValueAsString(paths), typeJson = json.writeValueAsString(types), excludeJson = json.writeValueAsString(excludes);
       jdbc.update(connection -> {
         PreparedStatement ps = connection.prepareStatement(
-            "INSERT INTO task_snapshot(task_id,snapshot_version,task_name_snapshot,description_snapshot,task_type,repository_id,source_snapshot,application,version_no,scan_paths,file_types,exclude_paths,prompt_snapshot,snapshot_hash,created_by_user_id,created_by_user_name) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO task_snapshot(task_id,snapshot_version,task_name_snapshot,description_snapshot,task_type,scan_source_type,repository_id,source_snapshot,application,version_no,scan_paths,file_types,exclude_paths,prompt_snapshot,snapshot_hash,created_by_user_id,created_by_user_name) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             Statement.RETURN_GENERATED_KEYS);
         ps.setLong(1, task.getId()); ps.setInt(2, version); ps.setString(3, dto.getTaskName().trim()); ps.setString(4, dto.getDescription());
-        ps.setString(5, validated.type); ps.setLong(6, validated.repository.getId()); ps.setString(7, sourceSnapshot);
-        ps.setString(8, validated.repository.getApplication()); ps.setString(9, dto.getVersionNo()); ps.setString(10, pathJson);
-        ps.setString(11, typeJson); ps.setString(12, excludeJson); ps.setString(13, promptJson); ps.setString(14, hash);
-        ps.setLong(15, AuditOperator.USER_ID); ps.setString(16, AuditOperator.USER_NAME); return ps;
+        ps.setString(5, validated.type); ps.setString(6, validated.repository.getScanSourceType()); ps.setLong(7, validated.repository.getId()); ps.setString(8, sourceSnapshot);
+        ps.setString(9, validated.repository.getApplication()); ps.setString(10, dto.getVersionNo()); ps.setString(11, pathJson);
+        ps.setString(12, typeJson); ps.setString(13, excludeJson); ps.setString(14, promptJson); ps.setString(15, hash);
+        ps.setLong(16, AuditOperator.USER_ID); ps.setString(17, AuditOperator.USER_NAME); return ps;
       }, key);
       return key.getKey().longValue();
     } catch (Exception e) { throw new BusinessException(30004, "任务快照保存失败：" + limit(e.getMessage(), 500)); }
@@ -422,6 +429,7 @@ public class TaskService {
     scope.put("fileTypes", normalizedTypes(dto.getFileTypes(), repository.getFileTypes()));
     scope.put("excludePaths", normalizedExcludes(dto.getExcludePaths(), repository.getExcludePatterns()));
     scope.put("versionNo", dto.getVersionNo());
+    scope.put("scanSourceType", repository.getScanSourceType());
     try { return json.writeValueAsString(scope); } catch (Exception e) { throw new BusinessException(30035, "扫描范围格式错误"); }
   }
 
@@ -512,6 +520,7 @@ public class TaskService {
     TaskSnapshot v = new TaskSnapshot(); v.setId(rs.getLong("id")); v.setTaskId(rs.getLong("task_id"));
     v.setSnapshotVersion(rs.getInt("snapshot_version")); v.setTaskNameSnapshot(rs.getString("task_name_snapshot"));
     v.setDescriptionSnapshot(rs.getString("description_snapshot")); v.setTaskType(rs.getString("task_type"));
+    v.setScanSourceType(rs.getString("scan_source_type"));
     v.setRepositoryId(rs.getLong("repository_id")); v.setSourceSnapshot(rs.getString("source_snapshot"));
     v.setApplication(rs.getString("application")); v.setVersionNo(rs.getString("version_no"));
     v.setScanPaths(rs.getString("scan_paths")); v.setFileTypes(rs.getString("file_types"));

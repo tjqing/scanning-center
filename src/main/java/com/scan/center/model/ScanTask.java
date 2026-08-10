@@ -13,6 +13,7 @@ public class ScanTask {
   private String repositoryName;
   private String repositorySourceType;
   private String repositoryFileName;
+  private String scanSourceType;
   private String scopeJson;
   private String status;
   private String taskType;
