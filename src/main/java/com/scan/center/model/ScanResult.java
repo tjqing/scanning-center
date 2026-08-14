@@ -12,6 +12,8 @@ public class ScanResult {
   private String runStatus;
   private String taskNo;
   private String taskName;
+  private String application;
+  private String versionNo;
   private String repositoryName;
   private Integer scannedFiles;
   private Integer successFiles;

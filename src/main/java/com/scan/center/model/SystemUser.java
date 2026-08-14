@@ -12,6 +12,9 @@ public class SystemUser {
   private String externalUserId;
   private String application;
   private String roleCode;
+  /** 登录密码摘要，接口不返回 */
+  @com.fasterxml.jackson.annotation.JsonIgnore
+  private String passwordHash;
   private List<Long> repositoryIds;
   private List<String> repositoryNames;
   private String description;

@@ -22,9 +22,11 @@ public class ResultController {
   @GetMapping("/results")
   public ApiResponse<PageResult<ScanResult>> results(
       @RequestParam(required = false) String keyword,
+      @RequestParam(required = false) String application,
+      @RequestParam(required = false) String versionNo,
       @RequestParam(defaultValue = "1") int pageNum,
       @RequestParam(defaultValue = "20") int pageSize) {
-    return ApiResponse.success(s.page(keyword, pageNum, pageSize));
+    return ApiResponse.success(s.page(keyword, application, versionNo, pageNum, pageSize));
   }
 
   @GetMapping("/results/{id}")
@@ -38,9 +40,11 @@ public class ResultController {
       @RequestParam(required = false) String status,
       @RequestParam(required = false) String risk,
       @RequestParam(required = false) Long resultId,
+      @RequestParam(required = false) String application,
+      @RequestParam(required = false) String versionNo,
       @RequestParam(defaultValue = "1") int pageNum,
       @RequestParam(defaultValue = "20") int pageSize) {
-    return ApiResponse.success(s.issues(keyword, status, risk, resultId, pageNum, pageSize));
+    return ApiResponse.success(s.issues(keyword, status, risk, resultId, application, versionNo, pageNum, pageSize));
   }
 
   @GetMapping("/issues/{id}")
@@ -53,8 +57,10 @@ public class ResultController {
       @RequestParam(required = false) String keyword,
       @RequestParam(required = false) String status,
       @RequestParam(required = false) String risk,
-      @RequestParam(required = false) Long resultId) throws Exception {
-    byte[] content = s.exportIssues(keyword, status, risk, resultId);
+      @RequestParam(required = false) Long resultId,
+      @RequestParam(required = false) String application,
+      @RequestParam(required = false) String versionNo) throws Exception {
+    byte[] content = s.exportIssues(keyword, status, risk, resultId, application, versionNo);
     String filename = URLEncoder.encode("扫描结果明细.xlsx", StandardCharsets.UTF_8.name()).replace("+", "%20");
     return ResponseEntity.ok()
         .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" + filename)

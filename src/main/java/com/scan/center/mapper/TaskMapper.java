@@ -8,10 +8,16 @@ public interface TaskMapper {
   List<ScanTask> page(
       @Param("keyword") String keyword,
       @Param("status") String status,
+      @Param("application") String application,
+      @Param("versionNo") String versionNo,
       @Param("offset") int offset,
       @Param("size") int size);
 
-  long count(@Param("keyword") String keyword, @Param("status") String status);
+  long count(
+      @Param("keyword") String keyword,
+      @Param("status") String status,
+      @Param("application") String application,
+      @Param("versionNo") String versionNo);
 
   ScanTask findById(Long id);
 

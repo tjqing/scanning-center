@@ -10,6 +10,8 @@ public interface RepositoryCatalogMapper {
   long count(@Param("keyword") String keyword, @Param("application") String application,
       @Param("enabled") Boolean enabled);
   RepositoryCatalog findById(Long id);
+  /** 取一条已配置 SSH 私钥的代码库，供 applyGitCredential 复用密文 */
+  RepositoryCatalog findSharedSshCredential();
   List<RepositoryCatalog> findEnabledByApplication(@Param("application") String application);
   int countName(@Param("name") String name, @Param("excludeId") Long excludeId);
   int insert(RepositoryCatalog value);

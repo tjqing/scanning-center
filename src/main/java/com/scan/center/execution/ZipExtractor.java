@@ -11,14 +11,27 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipInputStream;
 
-/** 安全 ZIP 解压工具，兼容 UTF-8 和 Windows 中文环境常见的 GBK 文件名。 */
+/**
+ * 安全 ZIP 解压工具：防路径穿越、限制条目数与解压体积，兼容 UTF-8 / GBK 文件名。
+ */
 public final class ZipExtractor {
+  /** 单包最多解压条目数 */
   private static final int MAX_ENTRIES = 10000;
+  /** 解压后累计字节上限（约 500MB） */
   private static final long MAX_EXPANDED_SIZE = 500L * 1024 * 1024;
+  /** Windows 中文环境常见 ZIP 文件名编码 */
   private static final Charset GBK = Charset.forName("GBK");
 
+  /** 工具类禁止实例化 */
   private ZipExtractor() {}
 
+  /**
+   * 将 ZIP 解压到目标根目录。
+   *
+   * @param zip  ZIP 文件路径
+   * @param root 解压根目录（必须已存在或可创建父目录）
+   * @throws IOException 超限、路径非法、编码不支持或 IO 失败
+   */
   public static void extract(Path zip, Path root) throws IOException {
     Charset charset = detectCharset(zip);
     long total = 0;
@@ -49,6 +62,13 @@ public final class ZipExtractor {
     }
   }
 
+  /**
+   * 探测 ZIP 条目名编码：优先 UTF-8，失败则尝试 GBK。
+   *
+   * @param zip ZIP 路径
+   * @return 可用字符集
+   * @throws IOException 两种编码均无法枚举条目时抛出
+   */
   private static Charset detectCharset(Path zip) throws IOException {
     try {
       validateNames(zip, StandardCharsets.UTF_8);
@@ -59,6 +79,14 @@ public final class ZipExtractor {
     }
   }
 
+  /**
+   * 用指定字符集打开 ZIP 并遍历全部条目名，用于校验编码是否可读。
+   *
+   * @param zip     ZIP 路径
+   * @param charset 尝试的字符集
+   * @throws IOException              打开失败
+   * @throws IllegalArgumentException 编码无法解码条目名
+   */
   private static void validateNames(Path zip, Charset charset) throws IOException {
     try (ZipFile file = new ZipFile(zip.toFile(), charset)) {
       Enumeration<? extends ZipEntry> entries = file.entries();

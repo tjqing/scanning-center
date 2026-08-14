@@ -57,6 +57,26 @@ public class ModelConfigController {
     service.updateTokenRetryCount(retryCount); return ApiResponse.success(null);
   }
 
+  @GetMapping("/model-settings/ai-scan-concurrency")
+  public ApiResponse<java.util.Map<String, Object>> aiScanConcurrency() {
+    return ApiResponse.success(service.aiScanConcurrencyStatus());
+  }
+
+  @PutMapping("/model-settings/ai-scan-concurrency")
+  public ApiResponse<Void> updateAiScanConcurrency(@RequestParam int concurrency) {
+    service.updateAiScanTaskConcurrency(concurrency); return ApiResponse.success(null);
+  }
+
+  @GetMapping("/model-settings/ai-schedule-window")
+  public ApiResponse<java.util.Map<String, Object>> aiScheduleWindow() {
+    return ApiResponse.success(service.aiScheduleWindow());
+  }
+
+  @PutMapping("/model-settings/ai-schedule-window")
+  public ApiResponse<Void> updateAiScheduleWindow(@RequestParam String start, @RequestParam String end) {
+    service.updateAiScheduleWindow(start, end); return ApiResponse.success(null);
+  }
+
   @GetMapping("/model-prompts")
   public ApiResponse<List<ModelPromptTemplate>> prompts(@RequestParam(required = false) String type) {
     return ApiResponse.success(service.prompts(type));

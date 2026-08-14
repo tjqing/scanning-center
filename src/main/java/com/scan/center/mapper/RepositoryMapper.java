@@ -8,6 +8,8 @@ public interface RepositoryMapper {
   List<CodeRepository> page(
       @Param("keyword") String keyword,
       @Param("type") String type,
+      @Param("application") String application,
+      @Param("versionNo") String versionNo,
       @Param("enabled") Boolean enabled,
       @Param("offset") int offset,
       @Param("size") int size);
@@ -15,6 +17,8 @@ public interface RepositoryMapper {
   long count(
       @Param("keyword") String keyword,
       @Param("type") String type,
+      @Param("application") String application,
+      @Param("versionNo") String versionNo,
       @Param("enabled") Boolean enabled);
 
   CodeRepository findById(Long id);

@@ -27,4 +27,11 @@ public class TaskCreateDTO {
   private String scopeJson;
 
   private Boolean executeImmediately;
+
+  /** 定时类型：NONE=不定时/ONCE=一次性定时 */
+  @Size(max = 20)
+  private String scheduleType;
+
+  /** 定时发起时间（yyyy-MM-dd HH:mm:ss） */
+  private java.util.Date scheduleTime;
 }

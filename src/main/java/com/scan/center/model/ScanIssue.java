@@ -32,6 +32,8 @@ public class ScanIssue {
   private Date createTime;
   private String taskName;
   private String taskNo;
+  private String application;
+  private String versionNo;
   private String repositoryName;
   private String ruleName;
 }

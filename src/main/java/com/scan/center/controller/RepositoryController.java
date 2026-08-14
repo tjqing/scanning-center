@@ -21,10 +21,12 @@ public class RepositoryController {
   public ApiResponse<PageResult<CodeRepository>> page(
       @RequestParam(required = false) String keyword,
       @RequestParam(required = false) String type,
+      @RequestParam(required = false) String application,
+      @RequestParam(required = false) String versionNo,
       @RequestParam(required = false) Boolean enabled,
       @RequestParam(defaultValue = "1") int pageNum,
       @RequestParam(defaultValue = "20") int pageSize) {
-    return ApiResponse.success(s.page(keyword, type, enabled, pageNum, pageSize));
+    return ApiResponse.success(s.page(keyword, type, application, versionNo, enabled, pageNum, pageSize));
   }
 
   @GetMapping("/{id}")

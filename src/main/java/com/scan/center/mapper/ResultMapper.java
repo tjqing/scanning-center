@@ -16,9 +16,16 @@ public interface ResultMapper {
   ScanResult findById(Long id);
 
   List<ScanResult> page(
-      @Param("keyword") String keyword, @Param("offset") int offset, @Param("size") int size);
+      @Param("keyword") String keyword,
+      @Param("application") String application,
+      @Param("versionNo") String versionNo,
+      @Param("offset") int offset,
+      @Param("size") int size);
 
-  long count(@Param("keyword") String keyword);
+  long count(
+      @Param("keyword") String keyword,
+      @Param("application") String application,
+      @Param("versionNo") String versionNo);
 
   int insertIssue(ScanIssue issue);
 
@@ -27,6 +34,8 @@ public interface ResultMapper {
       @Param("status") String status,
       @Param("risk") String risk,
       @Param("resultId") Long resultId,
+      @Param("application") String application,
+      @Param("versionNo") String versionNo,
       @Param("offset") int offset,
       @Param("size") int size);
 
@@ -34,13 +43,17 @@ public interface ResultMapper {
       @Param("keyword") String keyword,
       @Param("status") String status,
       @Param("risk") String risk,
-      @Param("resultId") Long resultId);
+      @Param("resultId") Long resultId,
+      @Param("application") String application,
+      @Param("versionNo") String versionNo);
 
   List<ScanIssue> issueExport(
       @Param("keyword") String keyword,
       @Param("status") String status,
       @Param("risk") String risk,
-      @Param("resultId") Long resultId);
+      @Param("resultId") Long resultId,
+      @Param("application") String application,
+      @Param("versionNo") String versionNo);
 
   ScanIssue findIssue(Long id);
 

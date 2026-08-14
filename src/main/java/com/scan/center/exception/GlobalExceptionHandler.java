@@ -15,13 +15,28 @@ public class GlobalExceptionHandler {
   @ExceptionHandler(BusinessException.class)
   @ResponseStatus(HttpStatus.CONFLICT)
   public ApiResponse<Void> business(BusinessException e) {
+    log.warn("business error code={}, message={}", e.getCode(), e.getMessage());
     return ApiResponse.failure(e.getCode(), e.getMessage());
   }
 
   @ExceptionHandler({MethodArgumentNotValidException.class, BindException.class})
   @ResponseStatus(HttpStatus.BAD_REQUEST)
   public ApiResponse<Void> validation(Exception e) {
-    return ApiResponse.failure(90001, "请求参数不合法");
+    String detail = "请求参数不合法";
+    if (e instanceof MethodArgumentNotValidException) {
+      MethodArgumentNotValidException ex = (MethodArgumentNotValidException) e;
+      if (ex.getBindingResult().getFieldError() != null) {
+        detail = ex.getBindingResult().getFieldError().getField() + " "
+            + ex.getBindingResult().getFieldError().getDefaultMessage();
+      }
+    } else if (e instanceof BindException) {
+      BindException ex = (BindException) e;
+      if (ex.getBindingResult().getFieldError() != null) {
+        detail = ex.getBindingResult().getFieldError().getField() + " "
+            + ex.getBindingResult().getFieldError().getDefaultMessage();
+      }
+    }
+    return ApiResponse.failure(90001, detail);
   }
 
   @ExceptionHandler(Exception.class)

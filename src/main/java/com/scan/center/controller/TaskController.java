@@ -2,6 +2,7 @@ package com.scan.center.controller;
 
 import com.scan.center.common.*;
 import com.scan.center.dto.TaskCreateDTO;
+import com.scan.center.dto.TaskExecuteResult;
 import com.scan.center.model.ScanTask;
 import com.scan.center.model.TaskManifest;
 import com.scan.center.model.TaskManifestFile;
@@ -24,9 +25,11 @@ public class TaskController {
   public ApiResponse<PageResult<ScanTask>> page(
       @RequestParam(required = false) String keyword,
       @RequestParam(required = false) String status,
+      @RequestParam(required = false) String application,
+      @RequestParam(required = false) String versionNo,
       @RequestParam(defaultValue = "1") int pageNum,
       @RequestParam(defaultValue = "20") int pageSize) {
-    return ApiResponse.success(s.page(keyword, status, pageNum, pageSize));
+    return ApiResponse.success(s.page(keyword, status, application, versionNo, pageNum, pageSize));
   }
 
   @GetMapping("/{id}")
@@ -72,17 +75,23 @@ public class TaskController {
   @GetMapping("/manifests/{manifestId}/files")
   public ApiResponse<PageResult<TaskManifestFile>> manifestFiles(
       @PathVariable Long manifestId,
+      @RequestParam(required = false) Long taskId,
       @RequestParam(required = false) String keyword,
       @RequestParam(required = false) String fileType,
       @RequestParam(defaultValue = "1") int pageNum,
       @RequestParam(defaultValue = "50") int pageSize) {
-    return ApiResponse.success(s.manifestFiles(manifestId, keyword, fileType, pageNum, pageSize));
+    return ApiResponse.success(s.manifestFiles(manifestId, taskId, keyword, fileType, pageNum, pageSize));
+  }
+
+  @GetMapping("/{id}/manifest-files/{fileId}/ai-responses")
+  public ApiResponse<java.util.Map<String, Object>> fileAiResponses(
+      @PathVariable Long id, @PathVariable Long fileId) {
+    return ApiResponse.success(s.fileAiResponses(id, fileId));
   }
 
   @PostMapping("/{id}/runs")
-  public ApiResponse<Void> execute(@PathVariable Long id) {
-    s.execute(id);
-    return ApiResponse.success(null);
+  public ApiResponse<TaskExecuteResult> execute(@PathVariable Long id) {
+    return ApiResponse.success(s.execute(id));
   }
 
   @PutMapping("/{id}/cancellation")
