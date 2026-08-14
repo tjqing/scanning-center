@@ -1,7 +1,8 @@
 spring:
   datasource:
     driver-class-name: org.h2.Driver
-    url: jdbc:h2:file:./data/scanning-center;MODE=MySQL;DATABASE_TO_LOWER=TRUE;AUTO_SERVER=TRUE
+    # 勿加 DATABASE_TO_LOWER=TRUE：会把 schema 变成 public，IDENTITY 建序列时仍写 "PUBLIC" 导致 90079
+    url: jdbc:h2:file:./data/scanning-center;MODE=MySQL;AUTO_SERVER=TRUE;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
     username: sa
     password:
   h2:
@@ -10,3 +11,24 @@ spring:
   datasource.initialization-mode: always
   datasource.schema: classpath:schema.sql
   datasource.data: classpath:data.sql
+  #     driver-class-name: com.mysql.cj.jdbc.Driver
+  #   url: jdbc:mysql://localhost:3306/scanning_center?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+  #   username: root
+  #   password: jiahaijun
+  # # MySQL 下勿自动执行 H2 语法的 data.sql；请先建库并手动执行 schema.sql
+  # datasource.initialization-mode: never
+
+# DeepSeek AI 网关（开发环境）
+scan-center:
+  ai:
+    # 本地凭证加解密密钥（SecretCodec）；生产请用环境变量覆盖
+    credential-secret: ${SCAN_CENTER_CREDENTIAL_SECRET:scanning-center-dev-secret-change-me}
+    # AiModelHttpClient 实际调用的完整 URL
+    url: ${AI_MODEL_URL:https://api.deepseek.com/chat/completions}
+    model: deepseek-v4-flash
+    ucid-header: X-UCID
+    token-header: Authorization
+    token-prefix: "Bearer "
+    connect-timeout-ms: 10000
+    read-timeout-ms: 120000
+
