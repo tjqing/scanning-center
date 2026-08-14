@@ -303,7 +303,7 @@ CREATE TABLE IF NOT EXISTS `task_scan_manifest` (
 CREATE TABLE IF NOT EXISTS `task_scan_manifest_file` (
   `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '清单文件ID：主键',
   `manifest_id` BIGINT NOT NULL COMMENT '清单ID',
-  `relative_path` VARCHAR(1000) NOT NULL COMMENT '文件相对路径',
+  `relative_path` VARCHAR(200) NOT NULL COMMENT '文件相对路径',
   `file_type` VARCHAR(32) DEFAULT NULL COMMENT '文件类型',
   `file_size` BIGINT DEFAULT 0 COMMENT '文件大小（字节）',
   `last_modified_time` TIMESTAMP DEFAULT NULL COMMENT '文件最后修改时间',
