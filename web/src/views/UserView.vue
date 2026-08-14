@@ -39,13 +39,21 @@ export default {
   data: () => ({ q: { keyword: '', roleCode: '', enabled: null, pageNum: 1, pageSize: 20 }, applications: APPLICATIONS, roles: [{ label: '管理员', value: 'ADMIN' }, { label: '普通用户', value: 'USER' }], rows: [], total: 0, loading: false, visible: false, saving: false, repositoriesLoading: false, availableRepositories: [], form: empty() }),
   created () { this.load() },
   methods: {
+    /** 将用户角色编码转为中文显示名 */
     roleName (value) { const role = this.roles.find(item => item.value === value); return role ? role.label : value },
+    /** 分页加载用户列表 */
     async load () { this.loading = true; try { const result = await userApi.page(this.q); this.rows = result.list; this.total = result.total } finally { this.loading = false } },
+    /** 打开新增/编辑弹窗：初始化表单并加载应用对应的代码库 */
     async edit (row) { this.form = row ? Object.assign(empty(), row, { application: row.application || (row.roleCode === 'ADMIN' ? 'ALL' : '') }) : empty(); this.availableRepositories = []; this.visible = true; if (this.form.application) await this.applicationChanged(this.form.application) },
+    /** 角色切换：管理员时应用强制为 ALL 并刷新代码库 */
     async roleChanged (role) { if (role === 'ADMIN') { this.form.application = 'ALL'; await this.applicationChanged('ALL') } },
+    /** 应用变化：加载该应用下所有已启用的代码库 */
     async applicationChanged (application) { this.availableRepositories = []; if (!application) return; this.repositoriesLoading = true; try { this.availableRepositories = await repositoryCatalogApi.available(application) } finally { this.repositoriesLoading = false } },
+    /** 校验并保存用户（新增或更新） */
     async save () { if (!/^[A-Za-z][A-Za-z0-9_.-]{2,63}$/.test(this.form.username)) return this.$message.warning('用户名须以字母开头，长度3-64位'); if (!this.form.displayName.trim()) return this.$message.warning('请填写姓名'); if (!this.form.application) return this.$message.warning('请选择应用'); if (this.form.roleCode === 'ADMIN' && this.form.application !== 'ALL') return this.$message.warning('管理员应用必须选择ALL'); this.saving = true; try { if (this.form.id) await userApi.update(this.form.id, this.form); else await userApi.create(this.form); this.visible = false; this.$message.success('用户及代码库关联保存成功'); await this.load() } finally { this.saving = false } },
+    /** 启用 / 停用用户 */
     async status (row, enabled) { await userApi.status(row.id, enabled); row.enabled = enabled },
+    /** 删除用户：二次确认后删除并刷新 */
     async remove (row) { await this.$confirm('确认删除用户 ' + row.username + '？'); await userApi.remove(row.id); this.$message.success('删除成功'); await this.load() }
   }
 }

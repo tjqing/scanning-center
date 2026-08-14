@@ -22,6 +22,15 @@ CREATE TABLE IF NOT EXISTS system_setting (
 INSERT INTO system_setting(setting_key,setting_value,description)
 SELECT 'AI_TOKEN_RETRY_COUNT','3','大模型Token调用失败后的重试次数'
 WHERE NOT EXISTS (SELECT 1 FROM system_setting WHERE setting_key='AI_TOKEN_RETRY_COUNT');
+INSERT INTO system_setting(setting_key,setting_value,description)
+SELECT 'AI_SCAN_TASK_CONCURRENCY','1','服务器可同时运行的AI类型扫描任务数量'
+WHERE NOT EXISTS (SELECT 1 FROM system_setting WHERE setting_key='AI_SCAN_TASK_CONCURRENCY');
+INSERT INTO system_setting(setting_key,setting_value,description)
+SELECT 'AI_SCHEDULE_WINDOW_START','20:00','AI任务允许定时发起的开始时刻（含跨天）'
+WHERE NOT EXISTS (SELECT 1 FROM system_setting WHERE setting_key='AI_SCHEDULE_WINDOW_START');
+INSERT INTO system_setting(setting_key,setting_value,description)
+SELECT 'AI_SCHEDULE_WINDOW_END','08:00','AI任务允许定时发起的结束时刻（含跨天）'
+WHERE NOT EXISTS (SELECT 1 FROM system_setting WHERE setting_key='AI_SCHEDULE_WINDOW_END');
 CREATE TABLE IF NOT EXISTS code_repository (
  id BIGINT AUTO_INCREMENT PRIMARY KEY, repository_name VARCHAR(128) NOT NULL, source_type VARCHAR(20) NOT NULL,
  description VARCHAR(1000), repository_url VARCHAR(1000), default_branch VARCHAR(128),
@@ -227,6 +236,7 @@ ALTER TABLE scan_rule ADD COLUMN IF NOT EXISTS shared_time TIMESTAMP;
 
 ALTER TABLE system_user ADD COLUMN IF NOT EXISTS external_user_id VARCHAR(128);
 ALTER TABLE system_user ADD COLUMN IF NOT EXISTS application VARCHAR(128);
+ALTER TABLE system_user ADD COLUMN IF NOT EXISTS password_hash VARCHAR(256);
 CREATE UNIQUE INDEX IF NOT EXISTS uk_system_user_username ON system_user(username);
 
 CREATE TABLE IF NOT EXISTS repository_catalog (
@@ -234,6 +244,10 @@ CREATE TABLE IF NOT EXISTS repository_catalog (
  repository_name VARCHAR(255) NOT NULL,
  repository_url VARCHAR(1000) NOT NULL,
  application VARCHAR(20) NOT NULL,
+ version_no VARCHAR(20),
+ auth_type VARCHAR(20) DEFAULT 'HTTPS_TOKEN',
+ git_username VARCHAR(128),
+ encrypted_secret CLOB,
  enabled BOOLEAN DEFAULT TRUE,
  deleted BOOLEAN DEFAULT FALSE,
  operator_user_id BIGINT,
@@ -243,6 +257,10 @@ CREATE TABLE IF NOT EXISTS repository_catalog (
  CONSTRAINT uk_repository_catalog_name UNIQUE(repository_name)
 );
 CREATE INDEX IF NOT EXISTS idx_repository_catalog_application ON repository_catalog(application,enabled,deleted);
+ALTER TABLE repository_catalog ADD COLUMN IF NOT EXISTS auth_type VARCHAR(20) DEFAULT 'HTTPS_TOKEN';
+ALTER TABLE repository_catalog ADD COLUMN IF NOT EXISTS git_username VARCHAR(128);
+ALTER TABLE repository_catalog ADD COLUMN IF NOT EXISTS encrypted_secret CLOB;
+ALTER TABLE repository_catalog ADD COLUMN IF NOT EXISTS version_no VARCHAR(20);
 
 CREATE TABLE IF NOT EXISTS user_repository_relation (
  id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -275,6 +293,9 @@ ALTER TABLE scan_task ADD COLUMN IF NOT EXISTS task_type VARCHAR(20);
 ALTER TABLE scan_task ADD COLUMN IF NOT EXISTS manifest_status VARCHAR(20);
 ALTER TABLE scan_task ADD COLUMN IF NOT EXISTS manifest_file_count INT DEFAULT 0;
 ALTER TABLE scan_task ADD COLUMN IF NOT EXISTS deleted BOOLEAN DEFAULT FALSE;
+ALTER TABLE scan_task ADD COLUMN IF NOT EXISTS schedule_type VARCHAR(20) DEFAULT 'NONE';
+ALTER TABLE scan_task ADD COLUMN IF NOT EXISTS schedule_time TIMESTAMP;
+CREATE INDEX IF NOT EXISTS idx_task_schedule ON scan_task(schedule_type, schedule_time);
 UPDATE scan_task SET task_type='AI' WHERE task_type='MD';
 
 CREATE TABLE IF NOT EXISTS model_prompt_template (
@@ -435,6 +456,13 @@ ALTER TABLE scan_issue ADD COLUMN IF NOT EXISTS run_id BIGINT;
 ALTER TABLE scan_issue ADD COLUMN IF NOT EXISTS execution_unit_id BIGINT;
 ALTER TABLE scan_issue ADD COLUMN IF NOT EXISTS result_commit_key VARCHAR(128);
 CREATE UNIQUE INDEX IF NOT EXISTS uk_scan_issue_commit ON scan_issue(result_commit_key);
+
+-- 保存每个执行单元的完整 AI 调用报文（JSON）
+ALTER TABLE task_execution_unit ADD COLUMN IF NOT EXISTS ai_response_json CLOB;
+-- AI 请求报文字符数（一次执行单元内所有 AI 调用 requestChars 之和）
+ALTER TABLE task_execution_unit ADD COLUMN IF NOT EXISTS request_chars INT DEFAULT 0;
+-- AI 请求 token 数（一次执行单元内所有 AI 调用 prompt_tokens 之和）
+ALTER TABLE task_execution_unit ADD COLUMN IF NOT EXISTS prompt_tokens INT DEFAULT 0;
 
 INSERT INTO model_prompt_template(prompt_type,version_no,prompt_content,status,operator_user_id,operator_user_name)
 SELECT 'AI_CHECK',1,'你是代码扫描助手。请根据检查规则检查给定文件内容，只返回符合约定结构的JSON。','ACTIVE',1,'admin'
